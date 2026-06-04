@@ -1,26 +1,138 @@
 @import "tailwindcss";
 
+/* Hi-Tech Design System — skills-il/hi-tech */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ht-primary: #0A1A2F;
+  --ht-surface: #FFFFFF;
+  --ht-accent: #2456E8;
+  --ht-on-primary: #FFFFFF;
+  --ht-on-surface: #0A1A2F;
+  --ht-on-accent: #FFFFFF;
+  --ht-surface-container: #F4F6FA;
+  --ht-accent-hover: #1a3fb8;
+  --ht-accent-soft: rgba(36, 86, 232, 0.16);
+  --ht-border: #dfe3ec;
+  --ht-shadow: 0 1px 0 rgba(0,0,0,0.04);
+  --ht-shadow-lg: 0 4px 12px rgba(10, 26, 47, 0.08);
+
+  /* Status colors */
+  --ht-success: #0f8a4f;
+  --ht-success-bg: #edf7f1;
+  --ht-warning: #c17a15;
+  --ht-warning-bg: #fef9ee;
+  --ht-danger: #c53030;
+  --ht-danger-bg: #fef2f2;
+  --ht-info-bg: #eef3fe;
+
+  /* Dr. Pita brand colors (from original packaging) */
+  --brand-red: #C41E2B;
+  --brand-red-light: #fce8e9;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-background: var(--ht-surface);
+  --color-foreground: var(--ht-on-surface);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--ht-surface-container);
+  color: var(--ht-on-surface);
+  font-size: 15px;
+  line-height: 1.55;
+  word-spacing: 0.05em;
+  letter-spacing: normal;
+}
+
+/* ===== WCAG 2.1 AA: Focus visible (Phase 4 fix) ===== */
+:focus-visible {
+  outline: 2px solid var(--ht-accent);
+  outline-offset: 2px;
+}
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--ht-accent);
+  outline-offset: 2px;
+}
+
+/* ===== Skip navigation (WCAG 2.4.1) ===== */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  right: 16px;
+  z-index: 9999;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: var(--ht-accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: top 0.2s;
+}
+.skip-link:focus {
+  top: 16px;
+}
+
+/* ===== Button classes (Phase 6: eliminate inline hover handlers) ===== */
+.btn-primary {
+  background: var(--ht-accent);
+  color: var(--ht-on-accent);
+  border-radius: 8px;
+  transition: background 0.15s;
+  cursor: pointer;
+}
+.btn-primary:hover {
+  background: var(--ht-accent-hover);
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  background: var(--ht-danger);
+  color: #fff;
+  border-radius: 8px;
+  transition: background 0.15s;
+  cursor: pointer;
+}
+.btn-danger:hover {
+  background: #a82828;
+}
+
+.btn-ghost {
+  background: var(--ht-surface);
+  color: var(--ht-on-surface);
+  border: 1px solid var(--ht-border);
+  border-radius: 8px;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+.btn-ghost:hover {
+  border-color: var(--ht-accent);
+  background: var(--ht-surface-container);
+}
+
+.btn-success {
+  background: var(--ht-success);
+  color: #fff;
+  border-radius: 8px;
+  transition: background 0.15s;
+  cursor: pointer;
+}
+.btn-success:hover {
+  background: #0c7040;
+}
+
+/* ===== Bidi isolation ===== */
+.ltr-content {
+  unicode-bidi: isolate;
+  direction: ltr;
+}
+
+pre, code {
+  direction: ltr;
+  text-align: start;
 }
