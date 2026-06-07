@@ -57,6 +57,24 @@ export class ProductionPlan {
     await ProductionPlanItem.createProductionPlanItem(planId, productId, plannedQty);
   }
 
+  // Find existing plan for a specific date (one plan per day)
+  static async findByDate(targetDate: string): Promise<ProductionPlan | null> {
+    const { data, error } = await supabase
+      .from('production_plans')
+      .select('*')
+      .eq('plan_date', targetDate)
+      .not('status', 'eq', 'Cancelled')
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    return new ProductionPlan({
+      planId: data.plan_id,
+      planDate: data.plan_date,
+      status: data.status as ProductionPlanStatus,
+    });
+  }
+
   static async findAll(): Promise<ProductionPlan[]> {
     const { data, error } = await supabase
       .from('production_plans')

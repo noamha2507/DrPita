@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const driverId = searchParams.get('driverId');
+    const filterDate = searchParams.get('date'); // filter by orders' required_delivery_date
 
     // Rich query with driver name and vehicle plate
     let query = supabase
@@ -36,21 +37,28 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
 
-    // Count orders per delivery
+    // Get orders per delivery (with required_delivery_date for filtering)
     const deliveryIds = (data || []).map((d: any) => d.delivery_id);
     const { data: orderCounts } = await supabase
       .from('orders')
-      .select('delivery_id, order_id, total_amount')
+      .select('delivery_id, order_id, total_amount, required_delivery_date')
       .in('delivery_id', deliveryIds.length > 0 ? deliveryIds : [-1]);
 
     const countMap: Record<number, { count: number; total: number }> = {};
+    // Track which deliveries have orders matching the filter date
+    const deliveryHasDateMatch: Set<number> = new Set();
     for (const o of (orderCounts || [])) {
       if (!countMap[o.delivery_id]) countMap[o.delivery_id] = { count: 0, total: 0 };
       countMap[o.delivery_id].count++;
       countMap[o.delivery_id].total += o.total_amount || 0;
+      // Check date match
+      if (filterDate && o.required_delivery_date) {
+        const reqDate = o.required_delivery_date.substring(0, 10);
+        if (reqDate === filterDate) deliveryHasDateMatch.add(o.delivery_id);
+      }
     }
 
-    const enriched = (data || []).map((d: any) => ({
+    let enriched = (data || []).map((d: any) => ({
       deliveryId: d.delivery_id,
       driverId: d.driver_id,
       driverName: d.employees?.full_name || `נהג #${d.driver_id}`,
@@ -63,6 +71,15 @@ export async function GET(request: NextRequest) {
       orderCount: countMap[d.delivery_id]?.count || 0,
       totalValue: countMap[d.delivery_id]?.total || 0,
     }));
+
+    // If date filter provided, show only deliveries that have orders for that date
+    // Also always show active deliveries (OnTheWay, On The Way) regardless of date
+    if (filterDate) {
+      enriched = enriched.filter((d: any) =>
+        deliveryHasDateMatch.has(d.deliveryId) ||
+        d.status === 'OnTheWay' || d.status === 'On The Way'
+      );
+    }
 
     return NextResponse.json(enriched);
   } catch (error: any) {

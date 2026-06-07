@@ -82,34 +82,29 @@ export default function LoginPage() {
       <div className="relative z-10 flex items-center justify-center px-6" style={{ minHeight: 'calc(100vh - 140px)' }}>
         <div className="w-full max-w-5xl flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
 
-          {/* Left side — branding & illustration */}
-          <div className="flex-1 text-center lg:text-start">
-            <div className="lg:hidden flex justify-center mb-6">
-              <Image src="/logo-nobg.png" alt="ד״ר פיתה" width={120} height={120} className="object-contain" priority />
+          {/* Left side — branding */}
+          <div className="flex-1 flex flex-col items-center lg:items-start">
+            {/* Logo with glow effect */}
+            <div className="relative mb-6">
+              <div className="absolute inset-0 rounded-full blur-2xl" style={{ background: 'rgba(218,175,90,0.15)', transform: 'scale(0.7)' }}></div>
+              <div className="lg:hidden relative">
+                <Image src="/logo-nobg.png" alt="ד״ר פיתה" width={200} height={200} className="object-contain relative z-10" priority />
+              </div>
+              <div className="hidden lg:block relative">
+                <Image src="/logo-nobg.png" alt="ד״ר פיתה" width={280} height={280} className="object-contain relative z-10" priority />
+              </div>
             </div>
-            <div className="hidden lg:block mb-6">
-              <Image src="/logo-nobg.png" alt="ד״ר פיתה" width={180} height={180} className="object-contain" priority />
-            </div>
-            <h1 className="text-3xl lg:text-4xl font-bold text-white leading-tight" style={{ fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
-              פיתות טריות<br />כל יום, בכל מקום
-            </h1>
-            <p className="mt-3 text-base lg:text-lg" style={{ color: 'rgba(255,255,255,0.5)' }}>
-              ניהול הזמנות, ייצור ומשלוחים — הכול במקום אחד.
-            </p>
 
-            {/* Stats row */}
-            <div className="flex justify-center lg:justify-start gap-8 mt-8">
-              {[
-                { value: '6', label: 'לקוחות פעילים' },
-                { value: '8+', label: 'הזמנות היום' },
-                { value: '24/7', label: 'מערכת זמינה' },
-              ].map((stat, i) => (
-                <div key={i} className="text-center lg:text-start">
-                  <p className="text-2xl font-bold text-white" style={{ fontFamily: 'var(--font-display), Heebo, sans-serif' }}>{stat.value}</p>
-                  <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>{stat.label}</p>
-                </div>
-              ))}
-            </div>
+            {/* Tagline */}
+            <h1 className="text-3xl lg:text-5xl font-bold text-white leading-tight text-center lg:text-start"
+              style={{ fontFamily: 'var(--font-display), Heebo, sans-serif', textShadow: '0 2px 20px rgba(0,0,0,0.3)' }}>
+              פיתות טריות
+              <br />
+              <span style={{ color: 'rgba(218,175,90,0.9)' }}>כל יום, בכל מקום</span>
+            </h1>
+            <p className="mt-4 text-base lg:text-lg text-center lg:text-start max-w-md" style={{ color: 'rgba(255,255,255,0.45)', lineHeight: '1.7' }}>
+              מערכת ד״ר פיתה מנהלת את כל שרשרת האספקה — מקליטת ההזמנה, דרך תכנון הייצור, ועד המשלוח ללקוח.
+            </p>
           </div>
 
           {/* Right side — login card */}

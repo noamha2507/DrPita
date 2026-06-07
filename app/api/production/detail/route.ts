@@ -72,10 +72,14 @@ export async function GET(request: NextRequest) {
     }));
 
     // 4. Get related approved orders for the plan date
+    // Plan date = delivery date (produce overnight, deliver morning)
+    const planDate = plan.plan_date;
     const { data: relatedOrders } = await supabase
       .from('orders')
-      .select('order_id, customer_id, total_amount, status, customers(business_name)')
-      .eq('status', 'Approved');
+      .select('order_id, customer_id, total_amount, status, required_delivery_date, customers(business_name)')
+      .eq('status', 'Approved')
+      .gte('required_delivery_date', planDate + 'T00:00:00')
+      .lt('required_delivery_date', planDate + 'T23:59:59');
 
     const orders = (relatedOrders || []).map((o: any) => ({
       orderId: o.order_id,

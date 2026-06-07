@@ -7,7 +7,13 @@ export class ProductionController {
   // SD2 message #2: generatePlan(targetDate)
   static async generatePlan(
     targetDate: string
-  ): Promise<{ success: boolean; planId?: number; status?: string; missingMaterials?: any[] }> {
+  ): Promise<{ success: boolean; planId?: number; status?: string; missingMaterials?: any[]; exists?: boolean }> {
+    // Check if a plan already exists for this date
+    const existingPlan = await ProductionPlan.findByDate(targetDate);
+    if (existingPlan) {
+      return { success: false, planId: existingPlan.planId, status: existingPlan.status, exists: true };
+    }
+
     // SD2 message #3: getApprovedOrderItems(targetDate)
     const approvedOrdersItems = await OrderItem.getApprovedOrderItems(targetDate);
 

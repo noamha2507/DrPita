@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import AppHeader from '../components/AppHeader';
 import { card, getStatusBadgeStyle } from '../components/styles';
 import { IconDelivery, IconCheck, IconX, IconAlertTriangle, IconRoute, IconOrders, IconInventory, IconMapPin, IconPhone, IconUser, IconMap } from '../components/Icons';
+import dynamic from 'next/dynamic';
+const DeliveryMap = dynamic(() => import('../components/DeliveryMap'), { ssr: false });
 
 interface DeliveryListItem {
   deliveryId: number; driverId: number; driverName: string; vehicleId: number; vehiclePlate: string;
@@ -23,23 +25,27 @@ const nextStatusMap: Record<string, { next: string; label: string }[]> = {
   Planned: [{ next: 'Assigned', label: 'שיוך נהג לרכב' }],
   Assigned: [{ next: 'Loaded', label: 'סימון רכב כנטען' }],
   Loaded: [{ next: 'On The Way', label: 'יציאה לדרך' }],
+  OnTheWay: [],
   'On The Way': [],
   Failed: [{ next: 'Planned', label: 'תזמון מחדש' }],
 };
-const statusLabels: Record<string, string> = { Planned: 'מתוכנן', Assigned: 'שויך', Loaded: 'נטען', 'On The Way': 'בדרך', Delivered: 'נמסר', Failed: 'נכשל' };
-const orderStatusLabels: Record<string, string> = { Approved: 'מאושרת — ממתינה לאישור מסירה', Delivered: 'נמסרה', Rejected: 'נדחתה', Draft: 'טיוטה' };
-const stateSteps = ['מתוכנן', 'שויך', 'נטען', 'בדרך', 'נמסר'];
-const stateKeys = ['Planned', 'Assigned', 'Loaded', 'On The Way', 'Delivered'];
-
+const statusLabels: Record<string, string> = { Planned: 'מתוכנן', Assigned: 'שויך', Loaded: 'נטען', OnTheWay: 'בדרך', 'On The Way': 'בדרך', Delivered: 'נמסר', Failed: 'נכשל' };
+const stateSteps = [
+  { key: 'Planned', label: 'מתוכנן' },
+  { key: 'Assigned', label: 'שויך' },
+  { key: 'Loaded', label: 'נטען' },
+  { key: 'OnTheWay', label: 'בדרך' },
+  { key: 'Delivered', label: 'נמסר' },
+];
 const statusGuidance: Record<string, string> = {
   Planned: 'יש לשייך נהג ורכב למשלוח',
   Assigned: 'יש לטעון את הסחורה לרכב',
   Loaded: 'הרכב נטען ומוכן — יש להתחיל את המסלול',
-  'On The Way': 'הנהג בדרך — בסיום יש להחתים את הלקוח ולסגור את המשלוח',
+  OnTheWay: 'הנהג בדרך — בסיום יש להחתים את הלקוח ולסגור',
+  'On The Way': 'הנהג בדרך — בסיום יש להחתים את הלקוח ולסגור',
   Delivered: 'המשלוח הושלם בהצלחה',
   Failed: 'המשלוח נכשל — ניתן לתזמן מחדש',
 };
-
 const routeLabels: Record<number, string> = { 3: 'קו רמלה ולוד', 1: 'קו רמלה ולוד', 2: 'קו יפו ופתח תקווה', 4: 'קו לוד ורחובות' };
 
 export default function DeliveryPage() {
@@ -52,14 +58,16 @@ export default function DeliveryPage() {
   const [result, setResult] = useState<any>(null);
   const [userRole, setUserRole] = useState('');
   const [currentEmployeeId, setCurrentEmployeeId] = useState<number | undefined>();
-  const [detailTab, setDetailTab] = useState<'route' | 'content' | 'orders' | 'signature'>('route');
+  const [detailTab, setDetailTab] = useState<'route' | 'map' | 'content' | 'orders' | 'signature'>('route');
   const [showFailModal, setShowFailModal] = useState(false);
   const [failDeliveryId, setFailDeliveryId] = useState<number | null>(null);
   const [failReason, setFailReason] = useState('');
-  const [pageError, setPageError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSigned, setHasSigned] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [unassignedCount, setUnassignedCount] = useState(0);
+  const [creatingDelivery, setCreatingDelivery] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -69,17 +77,64 @@ export default function DeliveryPage() {
     setUserRole(user.role);
     const empId = user.role === 'Manager' ? undefined : user.employeeId;
     setCurrentEmployeeId(empId);
-    loadList(empId);
+    const today = new Date().toISOString().split('T')[0];
+    loadList(empId, today);
+    checkUnassigned(today);
   }, [router]);
 
-  const loadList = async (driverId?: number) => {
+  const loadList = async (driverId?: number, date?: string) => {
     try {
-      setPageError(null);
-      const url = driverId ? `/api/delivery?driverId=${driverId}` : '/api/delivery';
+      let url = '/api/delivery';
+      const params = new URLSearchParams();
+      if (driverId) params.set('driverId', String(driverId));
+      if (date) params.set('date', date);
+      if (params.toString()) url += '?' + params.toString();
       const data = await (await fetch(url)).json();
       if (Array.isArray(data)) setDeliveries(data);
-    } catch { setPageError('שגיאה בטעינת משלוחים'); }
-    finally { setPageLoading(false); }
+    } catch {} finally { setPageLoading(false); }
+  };
+
+  const checkUnassigned = async (date: string) => {
+    try {
+      const res = await fetch(`/api/orders`);
+      const orders = await res.json();
+      const count = (orders || []).filter((o: any) => {
+        if (o.status !== 'Approved') return false;
+        if (o.deliveryId || o.delivery_id) return false;
+        const rd = o.requiredDeliveryDate || o.required_delivery_date;
+        return rd && rd.substring(0, 10) === date;
+      }).length;
+      setUnassignedCount(count);
+    } catch { setUnassignedCount(0); }
+  };
+
+  const handleDateChange = (date: string) => {
+    setSelectedDate(date);
+    setSelectedId(null);
+    setDetail(null);
+    setPageLoading(true);
+    loadList(currentEmployeeId, date);
+    checkUnassigned(date);
+  };
+
+  const handleCreateDelivery = async () => {
+    setCreatingDelivery(true);
+    try {
+      // Use first available driver and vehicle
+      const data = await (await fetch('/api/delivery/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ driverId: 3, vehicleId: 1, deliveryDate: selectedDate }),
+      })).json();
+      if (data.success) {
+        setResult({ success: true, message: `משלוח חדש #${data.deliveryId} נוצר עם ${data.assignedOrders} הזמנות` });
+        await loadList(currentEmployeeId, selectedDate);
+        checkUnassigned(selectedDate);
+      } else {
+        setResult({ success: false, message: data.error || 'שגיאה' });
+      }
+    } catch { setResult({ success: false, message: 'שגיאת חיבור' }); }
+    finally { setCreatingDelivery(false); }
   };
 
   const loadDetail = async (deliveryId: number) => {
@@ -90,20 +145,64 @@ export default function DeliveryPage() {
     } catch {} finally { setDetailLoading(false); }
   };
 
-  // Canvas
-  const getCtx = () => { const c = canvasRef.current; return c ? { canvas: c, ctx: c.getContext('2d')!, rect: c.getBoundingClientRect() } : null; };
-  const startDraw = (e: React.MouseEvent<HTMLCanvasElement>) => { const g = getCtx(); if (!g) return; setIsDrawing(true); g.ctx.beginPath(); g.ctx.moveTo(e.clientX - g.rect.left, e.clientY - g.rect.top); };
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => { if (!isDrawing) return; const g = getCtx(); if (!g) return; g.ctx.lineWidth = 2; g.ctx.lineCap = 'round'; g.ctx.strokeStyle = '#0A1A2F'; g.ctx.lineTo(e.clientX - g.rect.left, e.clientY - g.rect.top); g.ctx.stroke(); setHasSigned(true); };
+  // Signature canvas — coordinate-aware for CSS scaling
+  const getPos = (canvas: HTMLCanvasElement, clientX: number, clientY: number) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+  };
+
+  const startDraw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const c = canvasRef.current; if (!c) return;
+    const ctx = c.getContext('2d'); if (!ctx) return;
+    setIsDrawing(true);
+    const pos = getPos(c, e.clientX, e.clientY);
+    ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
+  };
+  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const c = canvasRef.current; if (!c) return;
+    const ctx = c.getContext('2d'); if (!ctx) return;
+    const pos = getPos(c, e.clientX, e.clientY);
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.strokeStyle = '#0A1A2F';
+    ctx.lineTo(pos.x, pos.y); ctx.stroke();
+    setHasSigned(true);
+  };
   const stopDraw = () => setIsDrawing(false);
-  const startDrawTouch = (e: React.TouchEvent<HTMLCanvasElement>) => { e.preventDefault(); const g = getCtx(); if (!g) return; setIsDrawing(true); const t = e.touches[0]; g.ctx.beginPath(); g.ctx.moveTo(t.clientX - g.rect.left, t.clientY - g.rect.top); };
-  const drawTouch = (e: React.TouchEvent<HTMLCanvasElement>) => { e.preventDefault(); if (!isDrawing) return; const g = getCtx(); if (!g) return; const t = e.touches[0]; g.ctx.lineWidth = 2; g.ctx.lineCap = 'round'; g.ctx.strokeStyle = '#0A1A2F'; g.ctx.lineTo(t.clientX - g.rect.left, t.clientY - g.rect.top); g.ctx.stroke(); setHasSigned(true); };
-  const clearSignature = () => { const g = getCtx(); if (!g) return; g.ctx.clearRect(0, 0, g.canvas.width, g.canvas.height); setHasSigned(false); };
+
+  const startDrawTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const c = canvasRef.current; if (!c) return;
+    const ctx = c.getContext('2d'); if (!ctx) return;
+    setIsDrawing(true);
+    const t = e.touches[0];
+    const pos = getPos(c, t.clientX, t.clientY);
+    ctx.beginPath(); ctx.moveTo(pos.x, pos.y);
+  };
+  const drawTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    if (!isDrawing) return;
+    const c = canvasRef.current; if (!c) return;
+    const ctx = c.getContext('2d'); if (!ctx) return;
+    const t = e.touches[0];
+    const pos = getPos(c, t.clientX, t.clientY);
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.strokeStyle = '#0A1A2F';
+    ctx.lineTo(pos.x, pos.y); ctx.stroke();
+    setHasSigned(true);
+  };
+  const clearSignature = () => {
+    const c = canvasRef.current; if (!c) return;
+    const ctx = c.getContext('2d'); if (!ctx) return;
+    ctx.clearRect(0, 0, c.width, c.height);
+    setHasSigned(false);
+  };
 
   const handleStatusTransition = async (deliveryId: number, newStatus: string) => {
     setLoading(true); setResult(null);
     try {
       const data = await (await fetch('/api/delivery', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deliveryId, newStatus }) })).json();
-      if (data.success) { setResult({ success: true, message: `סטטוס המשלוח עודכן — ${statusLabels[newStatus]}` }); await loadList(currentEmployeeId); if (selectedId === deliveryId) loadDetail(deliveryId); }
+      if (data.success) { setResult({ success: true, message: `סטטוס עודכן — ${statusLabels[newStatus] || newStatus}` }); await loadList(currentEmployeeId, selectedDate); if (selectedId === deliveryId) loadDetail(deliveryId); }
       else setResult({ success: false, message: data.error || 'שגיאה' });
     } catch { setResult({ success: false, message: 'שגיאת חיבור' }); } finally { setLoading(false); }
   };
@@ -116,375 +215,396 @@ export default function DeliveryPage() {
       const data = await (await fetch('/api/delivery', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deliveryId: selectedId, signatureFile: sig }) })).json();
       if (data.success) {
         setResult({ success: true, completed: true, deliveryNoteId: data.deliveryNoteId, deliveryId: selectedId });
-        clearSignature(); await loadList(currentEmployeeId); loadDetail(selectedId);
+        clearSignature(); await loadList(currentEmployeeId, selectedDate); loadDetail(selectedId);
       } else setResult({ success: false, message: data.error || 'שגיאה' });
     } catch { setResult({ success: false, message: 'שגיאת חיבור' }); } finally { setLoading(false); }
   };
 
-  const openFailModal = (deliveryId: number) => { setFailDeliveryId(deliveryId); setFailReason(''); setShowFailModal(true); };
-  const confirmFail = () => { if (failDeliveryId) { setShowFailModal(false); handleStatusTransition(failDeliveryId, 'Failed'); } };
-
-  const activeDeliveries = deliveries.filter(d => !['Delivered'].includes(d.status));
-  const needsAttention = deliveries.filter(d => ['On The Way', 'Planned', 'Assigned', 'Loaded'].includes(d.status));
-  const si = (status: string) => stateKeys.indexOf(status);
+  const si = (status: string) => {
+    const s = status === 'On The Way' ? 'OnTheWay' : status;
+    return stateSteps.findIndex(st => st.key === s);
+  };
+  const totalProducts = detail?.products.reduce((s, p) => s + p.totalQuantity, 0) || 0;
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--ht-surface-container)' }}>
       <AppHeader title="ד״ר פיתה — ניהול משלוחים" />
-      <main id="main-content" className="max-w-6xl mx-auto p-5 space-y-4">
 
-        {/* Info */}
-        <div className="p-3 rounded-xl text-sm" style={{ background: 'var(--ht-info-bg)', border: '1px solid var(--ht-border)' }}>
-          <p style={{ color: 'var(--ht-primary)' }}>{userRole === 'Driver' ? 'כאן ניתן לצפות במשלוחים שלך, לעדכן סטטוס ולסגור משלוח עם חתימת לקוח.' : 'מסך זה מציג את כל המשלוחים הפעילים ומאפשר מעקב, עדכון סטטוס וסגירת משלוחים.'}</p>
+      {/* Result toast */}
+      {result && (
+        <div className="fixed top-20 z-50 px-6 py-3 rounded-xl shadow-lg text-sm font-medium"
+          style={{ background: result.success ? 'var(--ht-success)' : 'var(--ht-danger)', color: '#fff', left: '50%', transform: 'translateX(-50%)' }}>
+          {result.completed ? `המשלוח הושלם — תעודה #${result.deliveryNoteId}` : result.message}
         </div>
+      )}
 
-        {pageError && (
-          <div className="p-3 rounded-xl text-sm flex items-center justify-between" style={{ background: 'var(--ht-danger-bg)', border: '1px solid var(--ht-border)' }}>
-            <p className="font-medium flex items-center gap-2" style={{ color: 'var(--ht-danger)' }}><IconAlertTriangle size={16} /> {pageError}</p>
-            <button onClick={() => { setPageError(null); loadList(currentEmployeeId); }} className="btn-ghost text-xs px-3 py-1">נסה שוב</button>
+      <div className="flex h-[calc(100vh-56px)]">
+        {/* ========== SIDEBAR — dark delivery list ========== */}
+        <div className="w-72 shrink-0 overflow-y-auto p-3 space-y-2" style={{ background: 'var(--ht-primary)' }}>
+          <p className="text-xs font-bold px-2 pt-1 pb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            {userRole === 'Manager' ? 'כל המשלוחים' : 'המשלוחים שלי'}
+          </p>
+          {/* Date picker */}
+          <div className="px-1 pb-2">
+            <input type="date" value={selectedDate} onChange={(e) => handleDateChange(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg text-sm" dir="ltr"
+              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff' }} />
           </div>
-        )}
-
-        {/* Completion result */}
-        {result?.completed && (
-          <div className="p-4 rounded-xl" style={{ background: 'var(--ht-success-bg)', border: '1px solid var(--ht-border)' }}>
-            <h3 className="font-bold text-sm flex items-center gap-2" style={{ color: 'var(--ht-success)' }}><IconCheck size={16} /> המשלוח הושלם בהצלחה</h3>
-            <div className="mt-2 space-y-1 text-xs" style={{ color: 'var(--ht-success)' }}>
-              <p><IconCheck size={12} className="inline" /> סטטוס המשלוח עודכן לנמסר</p>
-              <p><IconCheck size={12} className="inline" /> ההזמנות עודכנו לנמסר</p>
-              <p><IconCheck size={12} className="inline" /> תעודת משלוח #{result.deliveryNoteId} נוצרה</p>
-              <p><IconCheck size={12} className="inline" /> אישור נשלח ללקוח במייל</p>
+          {pageLoading ? (
+            <div className="text-center py-8"><div className="inline-block w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.2)', borderTopColor: '#fff' }}></div></div>
+          ) : deliveries.length === 0 ? (
+            <div className="text-center py-6">
+              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>אין משלוחים לתאריך זה</p>
+              <button onClick={() => { setSelectedDate(''); loadList(currentEmployeeId); }}
+                className="text-xs mt-2 px-3 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
+                הצג הכול
+              </button>
             </div>
-          </div>
-        )}
-        {result && !result.completed && (
-          <div className="rounded-xl p-3" style={{ background: result.success ? 'var(--ht-success-bg)' : 'var(--ht-danger-bg)', color: result.success ? 'var(--ht-success)' : 'var(--ht-danger)' }}>
-            <p className="font-bold text-sm flex items-center gap-2">{result.success ? <IconCheck size={16} /> : <IconX size={16} />} {result.message}</p>
-          </div>
-        )}
-
-        {/* SECTION 1: KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {[
-            { label: 'משלוחים פעילים', value: activeDeliveries.length, color: 'var(--ht-accent)', icon: <IconDelivery size={16} /> },
-            { label: 'בדרך', value: deliveries.filter(d => d.status === 'On The Way').length, color: 'var(--ht-accent)', icon: <IconRoute size={16} /> },
-            { label: 'הושלמו', value: deliveries.filter(d => d.status === 'Delivered').length, color: 'var(--ht-success)', icon: <IconCheck size={16} /> },
-            { label: 'הזמנות במשלוחים', value: deliveries.reduce((s, d) => s + d.orderCount, 0), color: 'var(--ht-primary)', icon: <IconOrders size={16} /> },
-            { label: 'דורשים טיפול', value: needsAttention.length, color: needsAttention.length > 0 ? 'var(--ht-warning)' : '#999', icon: <IconAlertTriangle size={16} /> },
-          ].map((kpi, i) => (
-            <div key={i} className="p-3 rounded-xl flex items-center gap-2.5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
-              <span style={{ color: kpi.color }}>{kpi.icon}</span>
-              <div>
-                <p className="text-lg font-bold" style={{ color: kpi.color }}>{kpi.value}</p>
-                <p className="text-[11px] opacity-60">{kpi.label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* SECTION 2: Action Center */}
-        {needsAttention.length > 0 && (
-          <div className="space-y-3">
-            <h2 className="text-sm font-bold" style={{ color: 'var(--ht-primary)' }}>דורש טיפול</h2>
-            {needsAttention.map(d => (
-              <div key={d.deliveryId} className="p-4 rounded-xl" style={{
-                background: d.status === 'On The Way' ? 'var(--ht-info-bg)' : d.status === 'Failed' ? 'var(--ht-danger-bg)' : 'var(--ht-surface)',
-                border: '1px solid var(--ht-border)',
-              }}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    {d.status === 'On The Way' ? <IconRoute size={18} /> : <IconDelivery size={18} />}
-                    <div>
-                      <span className="font-bold text-sm">{routeLabels[d.deliveryId] || 'קו חלוקה'}</span>
-                      <span className="text-xs opacity-50 me-2"> — {d.driverName}</span>
-                    </div>
-                  </div>
-                  <span style={{ ...getStatusBadgeStyle(d.status), fontSize: '11px', padding: '2px 8px' }}>{statusLabels[d.status]}</span>
+          ) : deliveries.map(d => {
+            const isSelected = selectedId === d.deliveryId;
+            return (
+              <button key={d.deliveryId} onClick={() => loadDetail(d.deliveryId)}
+                className="w-full text-start p-3 rounded-xl transition-all"
+                style={{
+                  background: isSelected ? 'rgba(36,86,232,0.3)' : 'rgba(255,255,255,0.05)',
+                  border: isSelected ? '1px solid var(--ht-accent)' : '1px solid transparent',
+                }}>
+                <div className="flex items-center gap-2 mb-1">
+                  <IconDelivery size={14} className="shrink-0" />
+                  <span className="text-sm font-bold text-white truncate">{routeLabels[d.deliveryId] || 'קו חלוקה'}</span>
                 </div>
-                <div className="flex gap-4 text-xs opacity-60 mb-2">
-                  <span>רכב: <bdi dir="ltr">{d.vehiclePlate}</bdi></span>
+                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                  {d.driverName} | <bdi dir="ltr">{d.vehiclePlate}</bdi>
+                </p>
+                <div className="flex items-center justify-between mt-2">
+                  <span style={{ ...getStatusBadgeStyle(d.status === 'On The Way' ? 'OnTheWay' : d.status), fontSize: '10px', padding: '1px 6px' }}>
+                    {statusLabels[d.status] || d.status}
+                  </span>
+                  <span className="text-xs font-bold text-white"><bdi dir="ltr">{d.totalValue.toLocaleString()}</bdi> ₪</span>
+                </div>
+                <div className="flex gap-3 mt-1.5 text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
                   <span>{d.orderCount} הזמנות</span>
-                  <span><bdi dir="ltr">{d.totalValue.toLocaleString()}</bdi> ₪</span>
                 </div>
-                <p className="text-xs opacity-50 mb-3 italic">{statusGuidance[d.status]}</p>
-                <div className="flex gap-2">
-                  <button onClick={() => loadDetail(d.deliveryId)} className="btn-ghost text-xs px-3 py-1.5">צפייה בפירוט</button>
-                  {(nextStatusMap[d.status] || []).map(t => (
-                    <button key={t.next} onClick={() => handleStatusTransition(d.deliveryId, t.next)} disabled={loading}
-                      className="btn-primary text-xs px-3 py-1.5 disabled:opacity-50">{t.label}</button>
-                  ))}
-                  {d.status === 'On The Way' && (
-                    <button onClick={() => { loadDetail(d.deliveryId); setDetailTab('signature'); }} className="btn-primary text-xs px-3 py-1.5">החתמת לקוח וסגירה</button>
-                  )}
-                  {d.status !== 'Failed' && d.status !== 'Delivered' && (
-                    <button onClick={() => openFailModal(d.deliveryId)} className="btn-danger text-xs px-3 py-1.5">דיווח כשל</button>
-                  )}
-                </div>
+              </button>
+            );
+          })}
+
+          {/* Unassigned orders alert */}
+          {unassignedCount > 0 && userRole === 'Manager' && (
+            <div className="p-3 rounded-xl" style={{ background: 'rgba(193,122,21,0.15)', border: '1px solid rgba(193,122,21,0.3)' }}>
+              <p className="text-xs font-bold mb-1" style={{ color: '#daa555' }}>
+                {unassignedCount} הזמנות ללא משלוח
+              </p>
+              <p className="text-[10px] mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                הזמנות שצריך לספק ב-{selectedDate} וטרם שויכו למשלוח
+              </p>
+              <button onClick={handleCreateDelivery} disabled={creatingDelivery}
+                className="w-full py-2 text-xs rounded-lg font-medium disabled:opacity-50"
+                style={{ background: 'var(--ht-accent)', color: '#fff' }}>
+                {creatingDelivery ? 'יוצר...' : 'צור משלוח חדש להזמנות אלו'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ========== MAIN CONTENT ========== */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {!selectedId && !detailLoading && (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center opacity-30">
+                <IconDelivery size={48} className="mx-auto" />
+                <p className="mt-3 text-sm">יש לבחור משלוח מהרשימה</p>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          )}
 
-        {/* SECTIONS 3+4: List + Detail */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          {/* Delivery list (2/5) */}
-          <div className="lg:col-span-2 space-y-2">
-            <h2 className="text-sm font-bold" style={{ color: 'var(--ht-primary)' }}>{userRole === 'Manager' ? 'כל המשלוחים' : 'המשלוחים שלי'}</h2>
-            {pageLoading ? (
-              <div className="text-center py-8"><div className="inline-block w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: 'var(--ht-border)', borderTopColor: 'var(--ht-accent)' }}></div></div>
-            ) : deliveries.length === 0 ? (
-              <div className="p-6 rounded-xl text-center" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
-                <p className="text-sm opacity-50">אין משלוחים</p>
-              </div>
-            ) : deliveries.map(d => {
-              const idx = si(d.status);
-              const isSelected = selectedId === d.deliveryId;
-              return (
-                <div key={d.deliveryId} onClick={() => loadDetail(d.deliveryId)} tabIndex={0} role="button"
-                  onKeyDown={(e) => { if (e.key === 'Enter') loadDetail(d.deliveryId); }}
-                  className="p-3 rounded-xl transition-all cursor-pointer"
-                  style={{
-                    background: isSelected ? 'var(--ht-info-bg)' : 'var(--ht-surface)',
-                    border: isSelected ? '2px solid var(--ht-accent)' : '1px solid var(--ht-border)',
-                    opacity: d.status === 'Delivered' ? 0.7 : 1,
-                  }}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-sm">{routeLabels[d.deliveryId] || 'קו חלוקה'}</span>
-                    <span style={{ ...getStatusBadgeStyle(d.status), fontSize: '10px', padding: '2px 6px' }}>{statusLabels[d.status]}</span>
-                  </div>
-                  <p className="text-xs opacity-60">{d.driverName} — <bdi dir="ltr">{d.vehiclePlate}</bdi> — {d.orderCount} הזמנות — <bdi dir="ltr">{d.totalValue.toLocaleString()}</bdi> ₪</p>
-                  {/* Progress tracker */}
-                  <div className="flex items-center gap-0.5 mt-2">
-                    {stateSteps.map((step, i) => (
-                      <div key={step} className="flex-1 flex flex-col items-center gap-0.5">
-                        <div className="w-full h-1.5 rounded-full" style={{
-                          background: d.status === 'Failed' ? (i === 0 ? 'var(--ht-danger)' : 'var(--ht-border)')
-                            : i <= idx ? 'var(--ht-accent)' : 'var(--ht-border)',
-                        }}></div>
-                        <span className="text-[8px]" style={{ color: i === idx ? 'var(--ht-accent)' : 'var(--ht-on-surface)', opacity: i === idx ? 1 : 0.25, fontWeight: i === idx ? 600 : 400 }}>{step}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          {detailLoading && (
+            <div className="flex items-center justify-center h-full">
+              <div className="inline-block w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: 'var(--ht-border)', borderTopColor: 'var(--ht-accent)' }}></div>
+            </div>
+          )}
 
-          {/* Detail panel (3/5) */}
-          <div className="lg:col-span-3 space-y-3">
-            {!selectedId && !detailLoading && (
-              <div className="p-8 rounded-xl text-center" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
-                <IconDelivery size={36} className="mx-auto opacity-20" />
-                <p className="font-medium mt-3" style={{ color: 'var(--ht-primary)' }}>יש לבחור משלוח לצפייה בפירוט</p>
-              </div>
-            )}
-
-            {detailLoading && (
-              <div className="p-8 text-center" style={card}><div className="inline-block w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: 'var(--ht-border)', borderTopColor: 'var(--ht-accent)' }}></div></div>
-            )}
-
-            {detail && !detailLoading && (
+          {detail && !detailLoading && (() => {
+            const idx = si(detail.delivery.status);
+            const isOnTheWay = detail.delivery.status === 'OnTheWay' || detail.delivery.status === 'On The Way';
+            const isDelivered = detail.delivery.status === 'Delivered';
+            return (
               <>
                 {/* Header */}
-                <div className="p-4" style={card}>
-                  <div className="flex items-center justify-between mb-2">
-                    <h2 className="text-base font-bold" style={{ color: 'var(--ht-primary)' }}>{routeLabels[detail.delivery.deliveryId] || 'קו חלוקה'}</h2>
-                    <span style={getStatusBadgeStyle(detail.delivery.status)}>{statusLabels[detail.delivery.status]}</span>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                    <div className="p-2 rounded-lg" style={{ background: 'var(--ht-surface-container)' }}>
-                      <p className="opacity-50 flex items-center gap-1"><IconUser size={12} /> נהג</p>
-                      <p className="font-bold">{detail.delivery.driverName}</p>
-                    </div>
-                    <div className="p-2 rounded-lg" style={{ background: 'var(--ht-surface-container)' }}>
-                      <p className="opacity-50 flex items-center gap-1"><IconDelivery size={12} /> רכב</p>
-                      <p className="font-bold"><bdi dir="ltr">{detail.delivery.vehiclePlate}</bdi></p>
-                    </div>
-                    <div className="p-2 rounded-lg" style={{ background: 'var(--ht-surface-container)' }}>
-                      <p className="opacity-50 flex items-center gap-1"><IconOrders size={12} /> הזמנות</p>
-                      <p className="font-bold">{detail.delivery.orderCount} ({detail.delivery.customerCount} לקוחות)</p>
-                    </div>
-                    <div className="p-2 rounded-lg" style={{ background: 'var(--ht-surface-container)' }}>
-                      <p className="opacity-50 flex items-center gap-1"><IconOrders size={12} /> שווי</p>
-                      <p className="font-bold"><bdi dir="ltr">{detail.delivery.totalValue.toLocaleString()}</bdi> ₪</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <IconDelivery size={22} />
+                    <div>
+                      <h1 className="text-xl font-bold" style={{ color: 'var(--ht-primary)' }}>{routeLabels[detail.delivery.deliveryId] || 'קו חלוקה'}</h1>
+                      <p className="text-xs opacity-50">
+                        משלוח #{detail.delivery.deliveryId} · {detail.delivery.driverName} · <bdi dir="ltr">{detail.delivery.vehiclePlate}</bdi>
+                      </p>
                     </div>
                   </div>
-                  {statusGuidance[detail.delivery.status] && (
-                    <p className="text-xs mt-3 px-3 py-2 rounded-lg" style={{ background: 'var(--ht-surface-container)' }}>{statusGuidance[detail.delivery.status]}</p>
-                  )}
-                  {/* Actions */}
-                  {(nextStatusMap[detail.delivery.status] || []).length > 0 && (
-                    <div className="flex gap-2 mt-3 pt-3" style={{ borderTop: '1px solid var(--ht-border)' }}>
-                      {nextStatusMap[detail.delivery.status].map(t => (
-                        <button key={t.next} onClick={() => handleStatusTransition(detail.delivery.deliveryId, t.next)} disabled={loading}
-                          className="btn-primary px-3 py-1.5 text-xs disabled:opacity-50">{t.label}</button>
-                      ))}
-                      {detail.delivery.status !== 'Failed' && detail.delivery.status !== 'Delivered' && (
-                        <button onClick={() => openFailModal(detail.delivery.deliveryId)} className="btn-danger px-3 py-1.5 text-xs">דיווח כשל</button>
-                      )}
-                    </div>
-                  )}
+                  <span style={getStatusBadgeStyle(detail.delivery.status === 'On The Way' ? 'OnTheWay' : detail.delivery.status)}>
+                    {statusLabels[detail.delivery.status] || detail.delivery.status}
+                  </span>
                 </div>
 
-                {/* Tabs */}
-                <div className="flex gap-1">
+                {/* ===== Progress tracker (circle style — LTR for correct order) ===== */}
+                <div className="py-4 px-6 rounded-xl" dir="ltr" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                  <div className="flex items-center">
+                    {stateSteps.map((step, i) => {
+                      const done = i <= idx;
+                      const current = i === idx;
+                      return (
+                        <div key={step.key} className="flex items-center" style={{ flex: i < stateSteps.length - 1 ? 1 : 'none' }}>
+                          <div className="flex flex-col items-center gap-1.5" style={{ minWidth: '56px' }}>
+                            <div className="w-10 h-10 rounded-full flex items-center justify-center transition-all" style={{
+                              background: done ? 'var(--ht-accent)' : 'var(--ht-surface-container)',
+                              border: current ? '3px solid var(--ht-accent)' : done ? 'none' : '2px solid var(--ht-border)',
+                              boxShadow: current ? '0 0 0 4px var(--ht-accent-soft)' : 'none',
+                            }}>
+                              {done && !current ? <IconCheck size={16} className="text-white" /> : (
+                                <span className="text-xs font-bold" style={{ color: done ? '#fff' : 'var(--ht-on-surface)', opacity: done ? 1 : 0.3 }}>{i + 1}</span>
+                              )}
+                            </div>
+                            <span className="text-xs font-medium" style={{ color: current ? 'var(--ht-accent)' : 'var(--ht-on-surface)', opacity: current ? 1 : done ? 0.7 : 0.3 }}>
+                              {step.label}
+                            </span>
+                          </div>
+                          {i < stateSteps.length - 1 && (
+                            <div className="flex-1 h-0.5 mx-1 rounded-full" style={{ background: i < idx ? 'var(--ht-accent)' : 'var(--ht-border)', minWidth: '20px' }}></div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ===== KPI Cards row ===== */}
+                <div className="grid grid-cols-4 gap-3">
                   {[
-                    { key: 'route' as const, label: 'מסלול ותחנות', icon: <IconMap size={14} /> },
+                    { icon: <IconInventory size={20} />, value: `${totalProducts.toLocaleString()} יח׳`, label: 'כמות פיתות' },
+                    { icon: <IconMapPin size={20} />, value: String(detail.stops.length), label: 'תחנות במסלול' },
+                    { icon: <IconOrders size={20} />, value: String(detail.delivery.orderCount), label: 'הזמנות' },
+                    { icon: <IconOrders size={20} />, value: `${detail.delivery.totalValue.toLocaleString()} ₪`, label: 'שווי כולל' },
+                  ].map((kpi, i) => (
+                    <div key={i} className="rounded-xl p-4 text-center" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                      <div className="flex justify-center mb-2"><span style={{ color: 'var(--ht-accent)' }}>{kpi.icon}</span></div>
+                      <p className="text-xl font-bold" style={{ color: 'var(--ht-primary)' }}>{kpi.value}</p>
+                      <p className="text-xs opacity-50 mt-0.5">{kpi.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* ===== Tabs ===== */}
+                <div className="flex gap-1 rounded-t-xl overflow-hidden" style={{ background: 'var(--ht-surface-container)' }}>
+                  {[
+                    { key: 'route' as const, label: 'מסלול ותחנות', icon: <IconMapPin size={14} /> },
+                    { key: 'map' as const, label: 'מפת ניווט', icon: <IconMap size={14} /> },
                     { key: 'content' as const, label: 'תכולת משלוח', icon: <IconInventory size={14} /> },
-                    { key: 'orders' as const, label: 'הזמנות', icon: <IconOrders size={14} /> },
-                    ...(detail.delivery.status === 'On The Way' || detail.delivery.status === 'Delivered' ? [{ key: 'signature' as const, label: detail.delivery.status === 'Delivered' ? 'תעודת משלוח' : 'חתימה וסגירה', icon: <IconCheck size={14} /> }] : []),
+                    { key: 'orders' as const, label: 'הזמנות במשלוח', icon: <IconOrders size={14} /> },
+                    ...((isOnTheWay || isDelivered) ? [{ key: 'signature' as const, label: isDelivered ? 'חתימה ותעודת משלוח' : 'חתימה ותעודת משלוח', icon: <IconCheck size={14} /> }] : []),
                   ].map(tab => (
                     <button key={tab.key} onClick={() => setDetailTab(tab.key)}
-                      className="flex-1 px-3 py-2 rounded-t-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all"
+                      className="flex-1 px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-all"
                       style={{
                         background: detailTab === tab.key ? 'var(--ht-surface)' : 'transparent',
                         color: detailTab === tab.key ? 'var(--ht-accent)' : 'var(--ht-on-surface)',
-                        borderBottom: detailTab === tab.key ? '2px solid var(--ht-accent)' : '2px solid var(--ht-border)',
                         opacity: detailTab === tab.key ? 1 : 0.5,
+                        borderBottom: detailTab === tab.key ? '2px solid var(--ht-accent)' : '2px solid transparent',
                       }}>
                       {tab.icon} {tab.label}
                     </button>
                   ))}
                 </div>
 
-                <div className="p-4 rounded-b-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)', borderTop: 'none' }}>
-                  {/* TAB: Route */}
+                {/* ===== Tab Content ===== */}
+                <div className="rounded-b-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)', borderTop: 'none' }}>
+                  {/* Route tab */}
                   {detailTab === 'route' && (
-                    detail.stops.length > 0 ? (
-                      <div className="space-y-3">
-                        <p className="text-xs opacity-50 mb-2">מסלול חלוקה מתוכנן — {detail.stops.length} תחנות</p>
-                        {detail.stops.map((stop, i) => (
-                          <div key={i} className="flex gap-3">
-                            <div className="flex flex-col items-center">
-                              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
-                                style={{ background: 'var(--ht-accent)', color: '#fff' }}>{stop.stopNumber}</div>
-                              {i < detail.stops.length - 1 && <div className="w-px flex-1 my-1" style={{ background: 'var(--ht-border)' }}></div>}
-                            </div>
-                            <div className="flex-1 p-3 rounded-lg" style={{ background: 'var(--ht-surface-container)', border: '1px solid var(--ht-border)' }}>
-                              <div className="flex items-center justify-between">
-                                <span className="font-bold text-sm">{stop.customerName}</span>
-                                <span style={{ ...getStatusBadgeStyle(stop.orderStatus), fontSize: '10px', padding: '1px 6px' }}>{stop.orderStatus === 'Approved' ? 'ממתין למסירה' : statusLabels[stop.orderStatus] || stop.orderStatus}</span>
-                              </div>
-                              <div className="flex flex-col gap-0.5 mt-1 text-xs opacity-60">
-                                <span className="flex items-center gap-1"><IconMapPin size={12} /> {stop.address}</span>
-                                <span className="flex items-center gap-1"><IconPhone size={12} /> <bdi dir="ltr">{stop.phone}</bdi></span>
-                              </div>
-                              <p className="text-xs mt-1">הזמנה #{stop.orderId} — <bdi dir="ltr">{stop.orderAmount.toLocaleString()}</bdi> ₪</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : <p className="text-sm opacity-50 py-4 text-center">אין תחנות במשלוח</p>
-                  )}
-
-                  {/* TAB: Content */}
-                  {detailTab === 'content' && (
-                    detail.products.length > 0 ? (
-                      <table className="w-full text-start text-sm">
-                        <thead>
-                          <tr style={{ borderBottom: '2px solid var(--ht-accent)' }}>
-                            <th className="pb-2 text-start text-xs font-bold" style={{ color: 'var(--ht-primary)' }}>מוצר</th>
-                            <th className="pb-2 text-start text-xs font-bold" style={{ color: 'var(--ht-primary)' }}>כמות</th>
-                            <th className="pb-2 text-start text-xs font-bold" style={{ color: 'var(--ht-primary)' }}>הזמנות</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {detail.products.map((p, i) => (
-                            <tr key={i} style={{ borderBottom: '1px solid var(--ht-border)' }}>
-                              <td className="py-2 font-medium">{p.productName}</td>
-                              <td className="py-2"><bdi dir="ltr">{p.totalQuantity.toLocaleString()}</bdi> יחידות</td>
-                              <td className="py-2">{p.orderCount} {p.orderCount === 1 ? 'הזמנה' : 'הזמנות'}</td>
+                    <div>
+                      <h3 className="font-bold text-sm mb-3" style={{ color: 'var(--ht-primary)' }}>מסלול חלוקה מתוכנן</h3>
+                      {detail.stops.length > 0 ? (
+                        <table className="w-full text-sm text-start">
+                          <thead>
+                            <tr style={{ borderBottom: '2px solid var(--ht-border)' }}>
+                              <th className="pb-2 text-start text-xs font-bold" style={{ color: 'var(--ht-primary)' }}>מס׳ תחנה</th>
+                              <th className="pb-2 text-start text-xs font-bold" style={{ color: 'var(--ht-primary)' }}>לקוח</th>
+                              <th className="pb-2 text-start text-xs font-bold" style={{ color: 'var(--ht-primary)' }}>כתובת</th>
+                              <th className="pb-2 text-start text-xs font-bold" style={{ color: 'var(--ht-primary)' }}>טלפון</th>
+                              <th className="pb-2 text-start text-xs font-bold" style={{ color: 'var(--ht-primary)' }}>הזמנה</th>
+                              <th className="pb-2 text-start text-xs font-bold" style={{ color: 'var(--ht-primary)' }}>סטטוס</th>
                             </tr>
-                          ))}
-                        </tbody>
-                        <tfoot>
-                          <tr style={{ borderTop: '2px solid var(--ht-border)' }}>
-                            <td className="pt-2 font-bold">סה״כ</td>
-                            <td className="pt-2 font-bold"><bdi dir="ltr">{detail.products.reduce((s, p) => s + p.totalQuantity, 0).toLocaleString()}</bdi> יחידות</td>
-                            <td></td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    ) : <p className="text-sm opacity-50 py-4 text-center">אין מוצרים במשלוח</p>
+                          </thead>
+                          <tbody>
+                            {detail.stops.map(stop => (
+                              <tr key={stop.stopNumber} style={{ borderBottom: '1px solid var(--ht-border)' }}>
+                                <td className="py-3">
+                                  <span className="w-7 h-7 rounded-full inline-flex items-center justify-center text-xs font-bold text-white" style={{ background: 'var(--ht-accent)' }}>{stop.stopNumber}</span>
+                                </td>
+                                <td className="py-3 font-medium">{stop.customerName}</td>
+                                <td className="py-3 text-xs opacity-60">{stop.address}</td>
+                                <td className="py-3 text-xs"><bdi dir="ltr">{stop.phone}</bdi></td>
+                                <td className="py-3 text-xs">#{stop.orderId}</td>
+                                <td className="py-3">
+                                  <span style={{ ...getStatusBadgeStyle(stop.orderStatus), fontSize: '10px', padding: '2px 8px' }}>
+                                    {stop.orderStatus === 'Approved' ? 'בדרך' : statusLabels[stop.orderStatus] || stop.orderStatus}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : <p className="text-sm opacity-40">אין תחנות</p>}
+                    </div>
                   )}
 
-                  {/* TAB: Orders */}
-                  {detailTab === 'orders' && (
-                    detail.orders.length > 0 ? (
-                      <div className="space-y-2">
-                        {detail.orders.map(o => (
-                          <div key={o.orderId} className="p-3 rounded-lg" style={{ background: 'var(--ht-surface-container)', border: '1px solid var(--ht-border)' }}>
-                            <div className="flex items-center justify-between mb-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-sm" style={{ color: 'var(--ht-accent)' }}>#{o.orderId}</span>
-                                <span className="text-sm">{o.customerName}</span>
-                              </div>
-                              <span className="text-sm font-medium"><bdi dir="ltr">{o.totalAmount.toLocaleString()}</bdi> ₪</span>
+                  {/* Map tab */}
+                  {detailTab === 'map' && (
+                    <DeliveryMap stops={detail.stops.map(s => ({
+                      customerName: s.customerName,
+                      address: s.address,
+                      orderId: s.orderId,
+                    }))} />
+                  )}
+
+                  {/* Content tab */}
+                  {detailTab === 'content' && (
+                    <div className="flex items-center gap-8">
+                      <div className="shrink-0 w-32 h-32 rounded-xl flex items-center justify-center" style={{ background: 'var(--ht-surface-container)' }}>
+                        <div className="text-center">
+                          <p className="text-3xl font-bold" style={{ color: 'var(--ht-primary)' }}>{totalProducts.toLocaleString()}</p>
+                          <p className="text-xs opacity-50">יחידות</p>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-bold text-sm mb-2" style={{ color: 'var(--ht-primary)' }}>תכולת משלוח</h3>
+                        {detail.products.map((p, i) => (
+                          <div key={i} className="flex items-center justify-between py-2" style={{ borderBottom: '1px solid var(--ht-border)' }}>
+                            <span className="font-medium">{p.productName}</span>
+                            <div className="text-end">
+                              <span className="font-bold"><bdi dir="ltr">{p.totalQuantity.toLocaleString()}</bdi> יחידות</span>
+                              <span className="text-xs opacity-40 me-2">{p.orderCount} הזמנות</span>
                             </div>
-                            <p className="text-xs opacity-60 flex items-center gap-1"><IconMapPin size={10} /> {o.address}</p>
-                            <p className="text-xs mt-1"><span style={{ ...getStatusBadgeStyle(o.status), fontSize: '10px', padding: '1px 6px' }}>{orderStatusLabels[o.status] || o.status}</span></p>
                           </div>
                         ))}
                       </div>
-                    ) : <p className="text-sm opacity-50 py-4 text-center">אין הזמנות במשלוח</p>
+                    </div>
                   )}
 
-                  {/* TAB: Signature / Delivery Note */}
+                  {/* Orders tab */}
+                  {detailTab === 'orders' && (
+                    <div className="space-y-2">
+                      {detail.orders.map(o => (
+                        <div key={o.orderId} className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--ht-surface-container)' }}>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-bold" style={{ color: 'var(--ht-accent)' }}>#{o.orderId}</span>
+                            <div>
+                              <p className="text-sm font-medium">{o.customerName}</p>
+                              <p className="text-xs opacity-50">{o.address}</p>
+                            </div>
+                          </div>
+                          <div className="text-end">
+                            <p className="text-sm font-bold"><bdi dir="ltr">{o.totalAmount.toLocaleString()}</bdi> ₪</p>
+                            <span style={{ ...getStatusBadgeStyle(o.status), fontSize: '10px', padding: '1px 6px' }}>
+                              {o.status === 'Approved' ? 'ממתין למסירה' : statusLabels[o.status] || o.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Signature tab */}
                   {detailTab === 'signature' && (
-                    detail.delivery.status === 'On The Way' ? (
+                    isOnTheWay ? (
                       <div>
-                        <p className="text-sm font-medium mb-2">יש להחתים את הלקוח לפני סגירת המשלוח</p>
-                        {!hasSigned && <p className="text-xs mb-2" style={{ color: 'var(--ht-warning)' }}>נדרשת חתימה לפני אישור</p>}
-                        <div className="rounded-lg mb-3 overflow-hidden" style={{ border: '2px solid var(--ht-border)' }}>
-                          <canvas ref={canvasRef} width={500} height={150} className="w-full cursor-crosshair" style={{ background: '#fafbfc' }}
+                        <h3 className="font-bold text-sm mb-2" style={{ color: 'var(--ht-primary)' }}>יש להחתים את הלקוח לפני סגירת המשלוח</h3>
+                        <div className="rounded-xl mb-3 overflow-hidden" style={{ border: '2px solid var(--ht-border)' }}>
+                          <canvas ref={canvasRef} width={800} height={200} className="w-full cursor-crosshair rounded-lg" style={{ background: '#fafbfc', height: '160px' }}
                             onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
                             onTouchStart={startDrawTouch} onTouchMove={drawTouch} onTouchEnd={() => setIsDrawing(false)} />
                         </div>
                         <div className="flex gap-2">
                           <button onClick={clearSignature} className="btn-ghost px-4 py-2 text-sm">ניקוי</button>
                           <button onClick={handleComplete} disabled={loading || !hasSigned}
-                            className="btn-success flex-1 py-2 text-sm text-white font-medium disabled:opacity-50">
-                            {loading ? 'סוגר משלוח...' : 'אישור מסירה וסגירת משלוח'}
+                            className="btn-primary flex-1 py-2.5 text-sm disabled:opacity-50">
+                            {loading ? 'סוגר...' : 'אישור מסירה וסגירת משלוח'}
                           </button>
                         </div>
                       </div>
-                    ) : detail.delivery.status === 'Delivered' ? (
+                    ) : isDelivered ? (
                       <div>
-                        <p className="font-bold text-sm mb-3 flex items-center gap-2" style={{ color: 'var(--ht-success)' }}><IconCheck size={16} /> המשלוח הושלם</p>
-                        {detail.deliveryNotes.length > 0 ? detail.deliveryNotes.map(n => (
-                          <div key={n.noteId} className="p-3 rounded-lg" style={{ background: 'var(--ht-success-bg)', border: '1px solid var(--ht-border)' }}>
+                        <div className="flex items-center gap-2 mb-3" style={{ color: 'var(--ht-success)' }}>
+                          <IconCheck size={18} /><span className="font-bold text-sm">המשלוח הושלם בהצלחה</span>
+                        </div>
+                        {detail.deliveryNotes.map(n => (
+                          <div key={n.noteId} className="p-3 rounded-lg" style={{ background: 'var(--ht-success-bg)' }}>
                             <p className="text-sm">תעודת משלוח #{n.noteId}</p>
                             <p className="text-xs opacity-60">נוצרה: <bdi dir="ltr">{new Date(n.createdAt).toLocaleString('he-IL')}</bdi></p>
                             <p className="text-xs">נשלחה במייל: {n.sentToEmail ? 'כן' : 'לא'}</p>
                           </div>
-                        )) : <p className="text-sm opacity-50">אין תעודת משלוח</p>}
-                        {detail.delivery.arrivalTime && (
-                          <p className="text-xs opacity-50 mt-2">זמן הגעה: <bdi dir="ltr">{new Date(detail.delivery.arrivalTime).toLocaleString('he-IL')}</bdi></p>
-                        )}
+                        ))}
                       </div>
                     ) : null
                   )}
                 </div>
+
+                {/* ===== Bottom action bar ===== */}
+                {!isDelivered && (
+                  <div className="grid grid-cols-3 gap-3" style={{ alignItems: 'stretch' }}>
+                    {/* Next action */}
+                    <div className="rounded-xl p-4" style={{ background: 'var(--ht-info-bg)', border: '1px solid var(--ht-border)' }}>
+                      <p className="text-xs font-bold mb-2" style={{ color: 'var(--ht-accent)' }}>פעולה הבאה</p>
+                      <p className="text-sm mb-3">{statusGuidance[detail.delivery.status]}</p>
+                      <div className="space-y-1.5">
+                        {(nextStatusMap[detail.delivery.status === 'On The Way' ? 'OnTheWay' : detail.delivery.status] || []).map(t => (
+                          <button key={t.next} onClick={() => handleStatusTransition(detail.delivery.deliveryId, t.next)} disabled={loading}
+                            className="btn-primary w-full py-2 text-sm disabled:opacity-50">{t.label}</button>
+                        ))}
+                        {isOnTheWay && (
+                          <button onClick={() => { setDetailTab('signature'); }} className="btn-primary w-full py-2 text-sm">
+                            המשך לחתימה וסגירה ←
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {/* Quick summary */}
+                    <div className="rounded-xl p-4" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                      <p className="text-xs font-bold mb-2" style={{ color: 'var(--ht-primary)' }}>סיכום מהיר</p>
+                      <div className="space-y-1.5 text-sm">
+                        <div className="flex justify-between"><span className="opacity-50">נהג</span><span className="font-medium">{detail.delivery.driverName}</span></div>
+                        <div className="flex justify-between"><span className="opacity-50">רכב</span><span className="font-medium" dir="ltr">{detail.delivery.vehiclePlate}</span></div>
+                        {detail.delivery.departureTime && <div className="flex justify-between"><span className="opacity-50">יציאה</span><span className="font-medium text-xs"><bdi dir="ltr">{new Date(detail.delivery.departureTime).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</bdi></span></div>}
+                      </div>
+                    </div>
+                    {/* Content summary */}
+                    <div className="rounded-xl p-4" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                      <p className="text-xs font-bold mb-2" style={{ color: 'var(--ht-primary)' }}>תכולת משלוח</p>
+                      {detail.products.map((p, i) => (
+                        <div key={i} className="text-sm">
+                          <span className="font-medium">{p.productName}</span>
+                          <span className="opacity-50 me-1"> — <bdi dir="ltr">{p.totalQuantity.toLocaleString()}</bdi> יחידות</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>
-            )}
-          </div>
+            );
+          })()}
         </div>
-      </main>
+      </div>
 
       {/* Fail modal */}
       {showFailModal && (
-        <div role="dialog" aria-modal="true" aria-labelledby="fail-title"
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        <div role="dialog" aria-modal="true" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={() => setShowFailModal(false)}>
-          <div dir="rtl" onClick={e => e.stopPropagation()} className="rounded-xl p-6" style={{ background: '#fff', maxWidth: '420px', width: '90%' }}>
-            <h3 id="fail-title" className="text-base font-bold mb-3" style={{ color: 'var(--ht-primary)' }}>דיווח כשל במשלוח</h3>
-            <label htmlFor="fail-reason" className="block text-sm mb-1 opacity-70">סיבת הכשל (אופציונלי)</label>
-            <textarea id="fail-reason" value={failReason} onChange={e => setFailReason(e.target.value)} rows={3}
+          <div onClick={e => e.stopPropagation()} className="rounded-xl p-6" style={{ background: '#fff', maxWidth: '400px', width: '90%' }}>
+            <h3 className="text-base font-bold mb-3" style={{ color: 'var(--ht-primary)' }}>דיווח כשל במשלוח</h3>
+            <textarea value={failReason} onChange={e => setFailReason(e.target.value)} rows={3}
               className="w-full rounded-lg text-sm p-3 mb-4 resize-none" style={{ border: '1px solid var(--ht-border)', background: 'var(--ht-surface-container)' }}
-              placeholder="ניתן לפרט..." />
-            <div className="flex gap-3">
-              <button onClick={confirmFail} className="btn-danger flex-1 py-2 text-sm text-white">אישור דיווח כשל</button>
-              <button onClick={() => setShowFailModal(false)} className="btn-ghost flex-1 py-2 text-sm">חזרה</button>
+              placeholder="סיבת הכשל (אופציונלי)" />
+            <div className="flex gap-2">
+              <button onClick={() => { if (failDeliveryId) { setShowFailModal(false); handleStatusTransition(failDeliveryId, 'Failed'); }}} className="btn-danger flex-1 py-2 text-sm text-white">אישור</button>
+              <button onClick={() => setShowFailModal(false)} className="btn-ghost flex-1 py-2 text-sm">ביטול</button>
             </div>
           </div>
         </div>
