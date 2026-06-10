@@ -170,7 +170,7 @@ export default function ProductionPage() {
           {/* Selected date info */}
           <div className="px-2 py-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.05)' }}>
             <p className="text-white font-bold text-sm">יום {dayName}, {dateDisplay}</p>
-            <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>ייצור בלילה → משלוח בבוקר</p>
+            <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>ייצור בלילה → אספקה ב-{deliveryDateStr}</p>
           </div>
 
           {/* Plans for this date */}
@@ -266,7 +266,7 @@ export default function ProductionPage() {
                     <IconProduction size={22} />
                     <div>
                       <h1 className="text-xl font-bold" style={{ color: 'var(--ht-primary)' }}>תוכנית ייצור — יום {dayName}, {dateDisplay}</h1>
-                      <p className="text-xs opacity-50">תוכנית #{planDetail.plan.planId} · ייצור בלילה, משלוח בבוקר</p>
+                      <p className="text-xs opacity-50">תוכנית #{planDetail.plan.planId} · ייצור בלילה · אספקה ב-{deliveryDateStr}</p>
                     </div>
                   </div>
                   <span style={getStatusBadgeStyle(planDetail.plan.status)}>{statusLabels[planDetail.plan.status] || planDetail.plan.status}</span>

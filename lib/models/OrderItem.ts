@@ -29,8 +29,8 @@ export class OrderItem {
   }
 
   // SD2 message #3: getApprovedOrderItems(targetDate)
-  // Production plan for date X = produce items for delivery on date X
-  // (production happens overnight, delivery goes out in the morning)
+  // Production plan for date X = produce tonight (X) for delivery on date X+1
+  // (production happens at night, delivery goes out next morning)
   static async getApprovedOrderItems(targetDate: string): Promise<any[]> {
     const { data, error } = await supabase
       .from('order_items')
@@ -45,12 +45,17 @@ export class OrderItem {
       .eq('orders.status', 'Approved');
     if (error) throw error;
 
-    // Include only orders where required_delivery_date = targetDate
-    // (produce tonight for delivery tomorrow morning = same date)
+    // Calculate delivery date = production date + 1 day
+    const prodDate = new Date(targetDate);
+    const deliveryDate = new Date(prodDate);
+    deliveryDate.setDate(deliveryDate.getDate() + 1);
+    const deliveryDateStr = deliveryDate.toISOString().split('T')[0];
+
+    // Include orders whose required_delivery_date is the day AFTER targetDate
     const filtered = (data || []).filter((item: any) => {
       const reqDate = item.orders?.required_delivery_date;
-      if (!reqDate) return false; // orders without date are not included in daily plans
-      return reqDate.substring(0, 10) === targetDate;
+      if (!reqDate) return false;
+      return reqDate.substring(0, 10) === deliveryDateStr;
     });
 
     return filtered;

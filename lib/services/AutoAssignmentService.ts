@@ -36,10 +36,16 @@ export class AutoAssignmentService {
 
     const deliveryDate = requiredDeliveryDate.substring(0, 10);
 
+    // Production happens the NIGHT BEFORE the delivery date.
+    // Order delivered on day X → Production plan dated X-1
+    const productionDate = new Date(deliveryDate);
+    productionDate.setDate(productionDate.getDate() - 1);
+    const productionDateStr = productionDate.toISOString().split('T')[0];
+
     // ===== 1. Production plan automation =====
     let planId: number | undefined;
     try {
-      planId = await AutoAssignmentService.attachToProductionPlan(deliveryDate);
+      planId = await AutoAssignmentService.attachToProductionPlan(productionDateStr);
     } catch (e: any) {
       warnings.push(`שיוך לתוכנית ייצור נכשל: ${e.message}`);
     }
@@ -61,12 +67,12 @@ export class AutoAssignmentService {
    * - If plan exists and is editable (Waiting For Materials / In Progress) → regenerate items
    * - If plan is Completed or Cancelled → don't touch (warn)
    */
-  private static async attachToProductionPlan(deliveryDate: string): Promise<number | undefined> {
-    const existingPlan = await ProductionPlan.findByDate(deliveryDate);
+  private static async attachToProductionPlan(productionDate: string): Promise<number | undefined> {
+    const existingPlan = await ProductionPlan.findByDate(productionDate);
 
     if (!existingPlan) {
-      // No plan exists — create one
-      const result = await ProductionController.generatePlan(deliveryDate);
+      // No plan exists — create one (will pull orders for productionDate+1)
+      const result = await ProductionController.generatePlan(productionDate);
       return result.planId;
     }
 
@@ -77,17 +83,18 @@ export class AutoAssignmentService {
     }
 
     // Editable plan — regenerate items from current approved orders
-    await AutoAssignmentService.regeneratePlanItems(existingPlan.planId, deliveryDate);
+    await AutoAssignmentService.regeneratePlanItems(existingPlan.planId, productionDate);
     return existingPlan.planId;
   }
 
   /**
-   * Refresh plan items to reflect current approved orders for this date.
+   * Refresh plan items to reflect current approved orders.
+   * targetDate is the PRODUCTION date — orders are pulled for targetDate+1.
    * Recomputes status (In Progress vs Waiting For Materials) based on stock.
    */
-  private static async regeneratePlanItems(planId: number, deliveryDate: string): Promise<void> {
-    // Get current approved order items for this date
-    const approvedItems = await OrderItem.getApprovedOrderItems(deliveryDate);
+  private static async regeneratePlanItems(planId: number, productionDate: string): Promise<void> {
+    // Get current approved order items for this production date (delivery = +1 day)
+    const approvedItems = await OrderItem.getApprovedOrderItems(productionDate);
     if (!approvedItems || approvedItems.length === 0) return;
 
     // Aggregate by product

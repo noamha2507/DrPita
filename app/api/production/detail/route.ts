@@ -71,15 +71,20 @@ export async function GET(request: NextRequest) {
       shortage: m.current < m.required ? Math.round((m.required - m.current) * 100) / 100 : 0,
     }));
 
-    // 4. Get related approved orders for the plan date
-    // Plan date = delivery date (produce overnight, deliver morning)
+    // 4. Get related approved orders.
+    // Plan date X = produce tonight for delivery on day X+1
+    // So we pull orders whose required_delivery_date = planDate + 1 day
     const planDate = plan.plan_date;
+    const deliveryDateObj = new Date(planDate);
+    deliveryDateObj.setDate(deliveryDateObj.getDate() + 1);
+    const deliveryDateStr = deliveryDateObj.toISOString().split('T')[0];
+
     const { data: relatedOrders } = await supabase
       .from('orders')
       .select('order_id, customer_id, total_amount, status, required_delivery_date, customers(business_name)')
       .eq('status', 'Approved')
-      .gte('required_delivery_date', planDate + 'T00:00:00')
-      .lt('required_delivery_date', planDate + 'T23:59:59');
+      .gte('required_delivery_date', deliveryDateStr + 'T00:00:00')
+      .lt('required_delivery_date', deliveryDateStr + 'T23:59:59');
 
     const orders = (relatedOrders || []).map((o: any) => ({
       orderId: o.order_id,
