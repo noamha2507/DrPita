@@ -73,6 +73,26 @@ export default function ProductionPage() {
     loadPlans();
   }, [router]);
 
+  // Auto-load or auto-generate plan when date changes (or plans are loaded)
+  useEffect(() => {
+    if (pageLoading) return; // wait for initial load
+
+    const planForDate = plans.find(p => {
+      const planDate = p.planDate || (p as any).plan_date;
+      return planDate === selectedDate;
+    });
+
+    if (planForDate) {
+      if (selectedPlanId !== planForDate.planId) {
+        loadDetail(planForDate.planId);
+      }
+    } else {
+      // No plan exists — try auto-generating it silently
+      autoGeneratePlan();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, pageLoading, plans]);
+
   const loadPlans = async () => {
     try {
       const data = await (await fetch('/api/production')).json();
@@ -88,15 +108,20 @@ export default function ProductionPage() {
     } catch {} finally { setDetailLoading(false); }
   };
 
-  const handleGenerate = async () => {
-    setLoading(true); setResult(null);
+  const autoGeneratePlan = async () => {
+    if (loading) return;
+    setLoading(true);
     try {
       const data = await (await fetch('/api/production', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targetDate: selectedDate }) })).json();
-      setResult(data);
-      await loadPlans();
-      if (data.planId) loadDetail(data.planId);
-    } catch { setResult({ success: false, error: 'שגיאת חיבור' }); }
-    finally { setLoading(false); }
+      if (data.planId) {
+        await loadPlans();
+        loadDetail(data.planId);
+        if (data.missingMaterials?.length) {
+          setResult({ planId: data.planId, missingMaterials: data.missingMaterials });
+        }
+      }
+      // If no orders for this date — silently do nothing, the empty state will show
+    } catch {} finally { setLoading(false); }
   };
 
   const handleStatusChange = async (planId: number, newStatus: string) => {
@@ -173,43 +198,33 @@ export default function ProductionPage() {
             <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>ייצור בלילה → אספקה ב-{deliveryDateStr}</p>
           </div>
 
-          {/* Plans for this date */}
-          <p className="text-xs font-bold px-2" style={{ color: 'rgba(255,255,255,0.4)' }}>
-            תוכניות ליום זה ({plansForDate.length})
-          </p>
-
-          {pageLoading ? (
-            <div className="text-center py-4"><div className="inline-block w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.2)', borderTopColor: '#fff' }}></div></div>
-          ) : plansForDate.length === 0 ? (
+          {/* Plan for this date */}
+          {pageLoading || (loading && plansForDate.length === 0) ? (
             <div className="text-center py-4">
-              <p className="text-xs mb-3" style={{ color: 'rgba(255,255,255,0.4)' }}>אין תוכנית ליום זה</p>
-              <button onClick={handleGenerate} disabled={loading}
-                className="btn-primary w-full py-2.5 text-sm disabled:opacity-50">
-                {loading ? 'מפיק...' : 'הפקת תוכנית יומית'}
-              </button>
+              <div className="inline-block w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.2)', borderTopColor: '#fff' }}></div>
+              <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.4)' }}>טוען תוכנית...</p>
+            </div>
+          ) : plansForDate.length === 0 ? (
+            <div className="text-center py-4 px-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.05)' }}>
+              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>אין הזמנות לאספקה ב-{deliveryDateStr}</p>
+              <p className="text-[10px] mt-1" style={{ color: 'rgba(255,255,255,0.3)' }}>התוכנית תיווצר אוטומטית כשתיכנס הזמנה</p>
             </div>
           ) : (
             plansForDate.slice(0, 1).map(plan => (
-              <div key={plan.planId}>
-                <button onClick={() => loadDetail(plan.planId)}
-                  className="w-full text-start p-3 rounded-xl transition-all"
-                  style={{
-                    background: selectedPlanId === plan.planId ? 'rgba(36,86,232,0.3)' : 'rgba(255,255,255,0.05)',
-                    border: selectedPlanId === plan.planId ? '1px solid var(--ht-accent)' : '1px solid transparent',
-                  }}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-bold text-white">תוכנית יומית</span>
-                    <span style={{ ...getStatusBadgeStyle(plan.status), fontSize: '10px', padding: '1px 6px' }}>
-                      {statusLabels[plan.status] || plan.status}
-                    </span>
-                  </div>
-                  <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                    {statusGuidance[plan.status] || ''}
-                  </p>
-                </button>
-                {!selectedPlanId && (
-                  <p className="text-xs text-center mt-2" style={{ color: 'rgba(255,255,255,0.3)' }}>לחצו לצפייה בפירוט</p>
-                )}
+              <div key={plan.planId} className="p-3 rounded-xl"
+                style={{
+                  background: selectedPlanId === plan.planId ? 'rgba(36,86,232,0.3)' : 'rgba(255,255,255,0.05)',
+                  border: selectedPlanId === plan.planId ? '1px solid var(--ht-accent)' : '1px solid transparent',
+                }}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-bold text-white">תוכנית יומית</span>
+                  <span style={{ ...getStatusBadgeStyle(plan.status), fontSize: '10px', padding: '1px 6px' }}>
+                    {statusLabels[plan.status] || plan.status}
+                  </span>
+                </div>
+                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  {statusGuidance[plan.status] || ''}
+                </p>
               </div>
             ))
           )}
@@ -217,13 +232,12 @@ export default function ProductionPage() {
 
         {/* ========== MAIN CONTENT ========== */}
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          {!selectedPlanId && !detailLoading && (
+          {!selectedPlanId && !detailLoading && !loading && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center opacity-30">
                 <IconProduction size={48} className="mx-auto" />
-                <p className="mt-3 text-sm">
-                  {plansForDate.length > 0 ? 'יש לבחור תוכנית מהרשימה' : 'אין תוכנית ליום זה — ניתן להפיק חדשה'}
-                </p>
+                <p className="mt-3 text-sm">אין הזמנות לאספקה ב-{deliveryDateStr}</p>
+                <p className="mt-1 text-xs">תוכנית הייצור תיווצר אוטומטית כשתיכנס הזמנה ראשונה</p>
               </div>
             </div>
           )}
