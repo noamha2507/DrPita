@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OrderController } from '@/lib/controllers/OrderController';
+import { AutoAssignmentService } from '@/lib/services/AutoAssignmentService';
 import { supabase } from '@/lib/db/supabase';
 
 export async function POST(request: NextRequest) {
@@ -10,7 +11,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'נדרש לקוח ופריטים' }, { status: 400 });
     }
 
+    // SD1: processOrder
     const result = await OrderController.processOrder(customerId, itemsList, requiredDeliveryDate || null);
+
+    // Automation layer — runs after order is approved (does not change SDs)
+    // Auto-attaches the order to:
+    //   1. Production plan for the delivery date (created/updated)
+    //   2. Active delivery for that date (created if none exists)
+    if (result.success && result.orderId) {
+      const automation = await AutoAssignmentService.runAfterOrderCreated(
+        result.orderId,
+        requiredDeliveryDate || null
+      );
+      return NextResponse.json({ ...result, automation });
+    }
+
     return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'שגיאה בעיבוד ההזמנה' }, { status: 500 });
