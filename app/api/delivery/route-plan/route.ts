@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const FACTORY_ADDRESS = 'אזור תעשייה, לוד, ישראל';
+const FACTORY_ADDRESS = 'מושב מצליח, ישראל';
 const GOOGLE_MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 interface Stop {

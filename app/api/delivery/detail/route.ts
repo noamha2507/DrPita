@@ -78,6 +78,11 @@ export async function GET(request: NextRequest) {
 
     const totalValue = (orders || []).reduce((s: number, o: any) => s + (o.total_amount || 0), 0);
 
+    // Determine route label from first customer's address
+    const { getRouteKeyFromAddress, getRouteLabel } = await import('@/lib/services/RoutePlanner');
+    const firstAddress = (orders || [])[0]?.customers?.address || '';
+    const routeLabel = getRouteLabel(getRouteKeyFromAddress(firstAddress));
+
     return NextResponse.json({
       delivery: {
         deliveryId: delivery.delivery_id,
@@ -92,6 +97,7 @@ export async function GET(request: NextRequest) {
         orderCount: (orders || []).length,
         customerCount: new Set((orders || []).map((o: any) => o.customer_id)).size,
         totalValue,
+        routeLabel,
       },
       orders: (orders || []).map((o: any) => ({
         orderId: o.order_id,

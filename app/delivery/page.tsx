@@ -271,7 +271,7 @@ export default function DeliveryPage() {
                 }}>
                 <div className="flex items-center gap-2 mb-1">
                   <IconDelivery size={14} className="shrink-0" />
-                  <span className="text-sm font-bold text-white truncate">{routeLabels[d.deliveryId] || 'קו חלוקה'}</span>
+                  <span className="text-sm font-bold text-white truncate">{(d as any).routeLabel || routeLabels[d.deliveryId] || 'קו חלוקה'}</span>
                 </div>
                 <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>
                   {d.driverName} | <bdi dir="ltr">{d.vehiclePlate}</bdi>
@@ -335,7 +335,7 @@ export default function DeliveryPage() {
                   <div className="flex items-center gap-3">
                     <IconDelivery size={22} />
                     <div>
-                      <h1 className="text-xl font-bold" style={{ color: 'var(--ht-primary)' }}>{routeLabels[detail.delivery.deliveryId] || 'קו חלוקה'}</h1>
+                      <h1 className="text-xl font-bold" style={{ color: 'var(--ht-primary)' }}>{(detail.delivery as any).routeLabel || routeLabels[detail.delivery.deliveryId] || 'קו חלוקה'}</h1>
                       <p className="text-xs opacity-50">
                         משלוח #{detail.delivery.deliveryId} · {detail.delivery.driverName} · <bdi dir="ltr">{detail.delivery.vehiclePlate}</bdi>
                       </p>
@@ -458,11 +458,16 @@ export default function DeliveryPage() {
 
                   {/* Map tab */}
                   {detailTab === 'map' && (
-                    <DeliveryMap stops={detail.stops.map(s => ({
-                      customerName: s.customerName,
-                      address: s.address,
-                      orderId: s.orderId,
-                    }))} />
+                    <DeliveryMap
+                      stops={detail.stops.map(s => ({
+                        customerName: s.customerName,
+                        address: s.address,
+                        phone: s.phone,
+                        orderId: s.orderId,
+                      }))}
+                      userRole={userRole}
+                      deliveryStatus={detail.delivery.status}
+                    />
                   )}
 
                   {/* Content tab */}

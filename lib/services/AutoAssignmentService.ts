@@ -4,6 +4,7 @@ import { ProductionController } from '../controllers/ProductionController';
 import { OrderItem } from '../models/OrderItem';
 import { BillOfMaterials } from '../models/BillOfMaterials';
 import { RawMaterial } from '../models/RawMaterial';
+import { getRouteKeyFromAddress, RouteKey } from './RoutePlanner';
 
 /**
  * Automation layer triggered AFTER an order is created.
@@ -142,30 +143,49 @@ export class AutoAssignmentService {
    * - If no active delivery → create new one with first available driver/vehicle
    */
   private static async attachOrderToDelivery(orderId: number, deliveryDate: string): Promise<number | undefined> {
-    // Look for an existing active delivery on this date
-    // Active = not yet On The Way, Delivered, or Failed
+    // Determine the route key for this order based on customer address
+    const { data: orderInfo } = await supabase
+      .from('orders')
+      .select('customer_id, customers(address)')
+      .eq('order_id', orderId)
+      .maybeSingle();
+
+    const customerAddress = (orderInfo as any)?.customers?.address || '';
+    const newOrderRouteKey: RouteKey = getRouteKeyFromAddress(customerAddress);
+
+    // Look for existing active deliveries (Planned/Assigned/Loaded)
     const { data: existingDeliveries } = await supabase
       .from('deliveries')
       .select('delivery_id, status, created_at')
       .in('status', ['Planned', 'Assigned', 'Loaded'])
       .order('created_at', { ascending: false });
 
-    // Find one that's tied to this date via its other orders
+    // Find a delivery that:
+    //  1. Has orders for the same date
+    //  2. Has orders for the same route (geographic area)
     let targetDeliveryId: number | undefined;
     if (existingDeliveries && existingDeliveries.length > 0) {
       for (const del of existingDeliveries) {
         const { data: ordersInDelivery } = await supabase
           .from('orders')
-          .select('required_delivery_date')
-          .eq('delivery_id', del.delivery_id)
-          .limit(1);
-        if (ordersInDelivery && ordersInDelivery.length > 0) {
-          const rd = ordersInDelivery[0].required_delivery_date;
-          if (rd && rd.substring(0, 10) === deliveryDate) {
-            targetDeliveryId = del.delivery_id;
-            break;
-          }
-        }
+          .select('required_delivery_date, customers(address)')
+          .eq('delivery_id', del.delivery_id);
+
+        if (!ordersInDelivery || ordersInDelivery.length === 0) continue;
+
+        // Check date match
+        const firstOrder = ordersInDelivery[0];
+        const rd = firstOrder.required_delivery_date;
+        if (!rd || rd.substring(0, 10) !== deliveryDate) continue;
+
+        // Check route match — all orders in delivery should be on the same route
+        const deliveryRouteKey: RouteKey = getRouteKeyFromAddress(
+          (firstOrder as any).customers?.address || ''
+        );
+        if (deliveryRouteKey !== newOrderRouteKey) continue;
+
+        targetDeliveryId = del.delivery_id;
+        break;
       }
     }
 

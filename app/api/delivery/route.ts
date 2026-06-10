@@ -37,18 +37,24 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
 
-    // Get orders per delivery (with required_delivery_date for filtering)
+    // Get orders per delivery (with required_delivery_date for filtering + customer for route)
     const deliveryIds = (data || []).map((d: any) => d.delivery_id);
     const { data: orderCounts } = await supabase
       .from('orders')
-      .select('delivery_id, order_id, total_amount, required_delivery_date')
+      .select('delivery_id, order_id, total_amount, required_delivery_date, customers(address)')
       .in('delivery_id', deliveryIds.length > 0 ? deliveryIds : [-1]);
 
-    const countMap: Record<number, { count: number; total: number }> = {};
+    const countMap: Record<number, { count: number; total: number; firstAddress: string }> = {};
     // Track which deliveries have orders matching the filter date
     const deliveryHasDateMatch: Set<number> = new Set();
     for (const o of (orderCounts || [])) {
-      if (!countMap[o.delivery_id]) countMap[o.delivery_id] = { count: 0, total: 0 };
+      if (!countMap[o.delivery_id]) {
+        countMap[o.delivery_id] = {
+          count: 0,
+          total: 0,
+          firstAddress: (o as any).customers?.address || '',
+        };
+      }
       countMap[o.delivery_id].count++;
       countMap[o.delivery_id].total += o.total_amount || 0;
       // Check date match
@@ -58,19 +64,27 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    let enriched = (data || []).map((d: any) => ({
-      deliveryId: d.delivery_id,
-      driverId: d.driver_id,
-      driverName: d.employees?.full_name || `נהג #${d.driver_id}`,
-      vehicleId: d.vehicle_id,
-      vehiclePlate: d.vehicles?.license_plate || '',
-      status: d.status,
-      departureTime: d.departure_time,
-      arrivalTime: d.arrival_time,
-      createdAt: d.created_at,
-      orderCount: countMap[d.delivery_id]?.count || 0,
-      totalValue: countMap[d.delivery_id]?.total || 0,
-    }));
+    // Import route resolver
+    const { getRouteKeyFromAddress, getRouteLabel } = await import('@/lib/services/RoutePlanner');
+
+    let enriched = (data || []).map((d: any) => {
+      const firstAddress = countMap[d.delivery_id]?.firstAddress || '';
+      const routeKey = getRouteKeyFromAddress(firstAddress);
+      return {
+        deliveryId: d.delivery_id,
+        driverId: d.driver_id,
+        driverName: d.employees?.full_name || `נהג #${d.driver_id}`,
+        vehicleId: d.vehicle_id,
+        vehiclePlate: d.vehicles?.license_plate || '',
+        status: d.status,
+        departureTime: d.departure_time,
+        arrivalTime: d.arrival_time,
+        createdAt: d.created_at,
+        orderCount: countMap[d.delivery_id]?.count || 0,
+        totalValue: countMap[d.delivery_id]?.total || 0,
+        routeLabel: getRouteLabel(routeKey),
+      };
+    });
 
     // If date filter provided, show only deliveries that have orders for that date
     // Also always show active deliveries (OnTheWay, On The Way) regardless of date
