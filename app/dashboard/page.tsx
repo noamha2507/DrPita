@@ -51,7 +51,7 @@ export default function DashboardPage() {
           <div>
             <p className="text-xs opacity-50 mb-1">{greeting}</p>
             <h2 className="text-2xl font-bold" style={{ color: 'var(--ht-primary)' }}>
-              {(user.fullName || '').split(' ')[0] || roleLabels[user.role]}
+              {(user.fullName || '').split(' ')[0] || user.username}
             </h2>
           </div>
           <span className="text-xs opacity-50">{new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
