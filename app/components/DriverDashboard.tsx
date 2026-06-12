@@ -85,7 +85,7 @@ function StatTile({
       <div className="absolute -top-3 -end-3 opacity-10" style={{ color: toneColor }}>
         <span style={{ fontSize: '64px', display: 'block' }}>{icon}</span>
       </div>
-      <p className="text-3xl font-bold tabular-nums" style={{ color: toneColor, fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
+      <p className="text-3xl font-bold tabular-nums" style={{ color: toneColor }}>
         {value}
       </p>
       <p className="text-xs opacity-60 mt-1 relative z-10">{label}</p>
@@ -115,7 +115,7 @@ function SuccessRing({ percent, delivered, failed }: { percent: number; delivere
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-3xl font-bold tabular-nums" style={{ color, fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
+          <span className="text-3xl font-bold tabular-nums" style={{ color }}>
             {percent}%
           </span>
           <span className="text-[10px] opacity-50">בזמן</span>
@@ -232,7 +232,7 @@ export default function DriverDashboard({ user }: Props) {
               </span>
             </div>
 
-            <h2 className="text-2xl font-bold mb-2" style={{ fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
+            <h2 className="text-2xl font-bold mb-2">
               {data.currentActive.routeLabel}
             </h2>
 
@@ -269,7 +269,7 @@ export default function DriverDashboard({ user }: Props) {
             </span>
           </div>
 
-          <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--ht-primary)', fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
+          <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--ht-primary)' }}>
             {data.nextUp.routeLabel}
           </h2>
 
@@ -409,7 +409,7 @@ export default function DriverDashboard({ user }: Props) {
                   color: isToday ? '#fff' : 'var(--ht-on-surface)',
                 }}>
                 <p className="text-[10px] font-medium opacity-80">{day.dayName}</p>
-                <p className="text-xl font-bold tabular-nums my-0.5" style={{ fontFamily: 'var(--font-display), Heebo, sans-serif' }}>{dateNum}</p>
+                <p className="text-xl font-bold tabular-nums my-0.5">{dateNum}</p>
                 {isEmpty ? (
                   <p className="text-[10px] opacity-30">—</p>
                 ) : (
@@ -447,7 +447,7 @@ export default function DriverDashboard({ user }: Props) {
         <div className="rounded-2xl p-5 flex flex-col justify-between" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
           <p className="text-xs opacity-50 font-bold">החודש הזה</p>
           <div className="flex items-baseline gap-2 my-3">
-            <span className="text-5xl font-bold tabular-nums" style={{ color: 'var(--ht-primary)', fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
+            <span className="text-5xl font-bold tabular-nums" style={{ color: 'var(--ht-primary)' }}>
               {data.stats.month.delivered}
             </span>
             <span className="text-lg opacity-40">/ {data.stats.month.scheduled}</span>

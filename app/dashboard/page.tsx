@@ -50,7 +50,7 @@ export default function DashboardPage() {
         <div className="flex items-end justify-between">
           <div>
             <p className="text-xs opacity-50 mb-1">{greeting}</p>
-            <h2 className="text-2xl font-bold" style={{ color: 'var(--ht-primary)', fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
+            <h2 className="text-2xl font-bold" style={{ color: 'var(--ht-primary)' }}>
               {(user.fullName || '').split(' ')[0] || roleLabels[user.role]}
             </h2>
           </div>
