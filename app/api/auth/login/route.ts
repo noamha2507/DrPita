@@ -20,6 +20,7 @@ export async function POST(request: NextRequest) {
       username: result.user.username,
       role: result.role,
       employeeId: result.user.employeeId,
+      fullName: result.fullName,
     });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'שגיאת שרת' }, { status: 500 });

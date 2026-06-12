@@ -6,6 +6,7 @@ import AppHeader from '../components/AppHeader';
 import Logo from '../components/Logo';
 import { getStatusBadgeStyle } from '../components/styles';
 import { IconOrders, IconProduction, IconDelivery, IconInventory, IconCheck, IconX, IconGear, IconClock, IconRoute, IconCircleFull, IconAlertTriangle } from '../components/Icons';
+import DriverDashboard from '../components/DriverDashboard';
 
 const roleLabels: Record<string, string> = { Manager: 'מנהל', ProductionWorker: 'עובד ייצור', WarehouseWorker: 'מחסנאי', Driver: 'נהג' };
 const statusLabels: Record<string, string> = { Draft: 'טיוטה', Approved: 'מאושרת', Rejected: 'נדחתה', Delivered: 'נמסרה', 'In Progress': 'בייצור', InProgress: 'בייצור', 'Waiting For Materials': 'ממתין לחומרים', Completed: 'הושלם', Cancelled: 'בוטל', Planned: 'מתוכנן', 'On The Way': 'בדרך', Failed: 'נכשל' };
@@ -47,7 +48,9 @@ export default function DashboardPage() {
       <main id="main-content" className="max-w-6xl mx-auto p-5 space-y-5">
         {/* Greeting */}
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold" style={{ color: 'var(--ht-primary)' }}>{greeting}, {roleLabels[user.role]}</h2>
+          <h2 className="text-lg font-bold" style={{ color: 'var(--ht-primary)' }}>
+            {greeting}, {user.fullName || roleLabels[user.role]}
+          </h2>
           <span className="text-sm opacity-60">{new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
         </div>
 
@@ -212,8 +215,13 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Non-manager welcome */}
-        {user.role !== 'Manager' && (
+        {/* Driver — personalised dashboard */}
+        {user.role === 'Driver' && (
+          <DriverDashboard user={user} />
+        )}
+
+        {/* Other non-manager roles — placeholder welcome */}
+        {user.role !== 'Manager' && user.role !== 'Driver' && (
           <div className="p-8 rounded-xl text-center flex flex-col items-center" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
             <Logo size={56} light={false} />
             <p className="text-lg font-bold mt-3" style={{ color: 'var(--ht-primary)' }}>{greeting}, {roleLabels[user.role]}</p>

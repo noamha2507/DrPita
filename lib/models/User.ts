@@ -37,7 +37,7 @@ export class User {
   }
 
   // CD method
-  static async login(username: string, password: string): Promise<{ user: User; role: string } | null> {
+  static async login(username: string, password: string): Promise<{ user: User; role: string; fullName: string } | null> {
     const { data, error } = await supabase
       .from('users')
       .select(`
@@ -64,6 +64,7 @@ export class User {
     return {
       user,
       role: data.role?.role_name || 'Unknown',
+      fullName: data.employee?.full_name || data.username,
     };
   }
 }
