@@ -66,8 +66,6 @@ export default function DeliveryPage() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSigned, setHasSigned] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [unassignedCount, setUnassignedCount] = useState(0);
-  const [creatingDelivery, setCreatingDelivery] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -79,7 +77,7 @@ export default function DeliveryPage() {
     setCurrentEmployeeId(empId);
     const today = new Date().toISOString().split('T')[0];
     loadList(empId, today);
-    checkUnassigned(today);
+    autoAssignPending(today);
   }, [router]);
 
   const loadList = async (driverId?: number, date?: string) => {
@@ -94,18 +92,25 @@ export default function DeliveryPage() {
     } catch {} finally { setPageLoading(false); }
   };
 
-  const checkUnassigned = async (date: string) => {
+  /**
+   * Auto-resolve any orphan orders for the date by routing them through
+   * the same auto-assignment service used at order creation. Runs silently
+   * — the manager never has to click anything.
+   */
+  const autoAssignPending = async (date: string) => {
     try {
-      const res = await fetch(`/api/orders`);
-      const orders = await res.json();
-      const count = (orders || []).filter((o: any) => {
-        if (o.status !== 'Approved') return false;
-        if (o.deliveryId || o.delivery_id) return false;
-        const rd = o.requiredDeliveryDate || o.required_delivery_date;
-        return rd && rd.substring(0, 10) === date;
-      }).length;
-      setUnassignedCount(count);
-    } catch { setUnassignedCount(0); }
+      const data = await (await fetch('/api/delivery/auto-assign-pending', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deliveryDate: date }),
+      })).json();
+      if (data.success && data.assignedCount > 0) {
+        // Refresh the list to show the newly-created deliveries
+        await loadList(currentEmployeeId, date);
+      }
+    } catch {
+      // Silent fail — the user shouldn't see infrastructure errors here
+    }
   };
 
   const handleDateChange = (date: string) => {
@@ -114,27 +119,7 @@ export default function DeliveryPage() {
     setDetail(null);
     setPageLoading(true);
     loadList(currentEmployeeId, date);
-    checkUnassigned(date);
-  };
-
-  const handleCreateDelivery = async () => {
-    setCreatingDelivery(true);
-    try {
-      // Use first available driver and vehicle
-      const data = await (await fetch('/api/delivery/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ driverId: 3, vehicleId: 1, deliveryDate: selectedDate }),
-      })).json();
-      if (data.success) {
-        setResult({ success: true, message: `משלוח חדש #${data.deliveryId} נוצר עם ${data.assignedOrders} הזמנות` });
-        await loadList(currentEmployeeId, selectedDate);
-        checkUnassigned(selectedDate);
-      } else {
-        setResult({ success: false, message: data.error || 'שגיאה' });
-      }
-    } catch { setResult({ success: false, message: 'שגיאת חיבור' }); }
-    finally { setCreatingDelivery(false); }
+    autoAssignPending(date);
   };
 
   const loadDetail = async (deliveryId: number) => {
@@ -290,21 +275,6 @@ export default function DeliveryPage() {
           })}
 
           {/* Unassigned orders alert */}
-          {unassignedCount > 0 && userRole === 'Manager' && (
-            <div className="p-3 rounded-xl" style={{ background: 'rgba(193,122,21,0.15)', border: '1px solid rgba(193,122,21,0.3)' }}>
-              <p className="text-xs font-bold mb-1" style={{ color: '#daa555' }}>
-                {unassignedCount} הזמנות ללא משלוח
-              </p>
-              <p className="text-[10px] mb-2" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                הזמנות שצריך לספק ב-{selectedDate} וטרם שויכו למשלוח
-              </p>
-              <button onClick={handleCreateDelivery} disabled={creatingDelivery}
-                className="w-full py-2 text-xs rounded-lg font-medium disabled:opacity-50"
-                style={{ background: 'var(--ht-accent)', color: '#fff' }}>
-                {creatingDelivery ? 'יוצר...' : 'צור משלוח חדש להזמנות אלו'}
-              </button>
-            </div>
-          )}
         </div>
 
         {/* ========== MAIN CONTENT ========== */}
