@@ -47,11 +47,14 @@ export default function DashboardPage() {
 
       <main id="main-content" className="max-w-6xl mx-auto p-5 space-y-5">
         {/* Greeting */}
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold" style={{ color: 'var(--ht-primary)' }}>
-            {greeting}, {user.fullName || roleLabels[user.role]}
-          </h2>
-          <span className="text-sm opacity-60">{new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+        <div className="flex items-end justify-between">
+          <div>
+            <p className="text-xs opacity-50 mb-1">{greeting}</p>
+            <h2 className="text-2xl font-bold" style={{ color: 'var(--ht-primary)', fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
+              {(user.fullName || '').split(' ')[0] || roleLabels[user.role]}
+            </h2>
+          </div>
+          <span className="text-xs opacity-50">{new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
         </div>
 
         {user.role === 'Manager' && d && (
