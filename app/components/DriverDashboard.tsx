@@ -193,10 +193,15 @@ export default function DriverDashboard({ user }: Props) {
   const todayStr = new Date().toISOString().split('T')[0];
   const firstName = getFirstName(user.fullName);
 
-  // Compute today aggregates
+  // Compute today aggregates. Each driver has at most one delivery per day,
+  // so "today" is really "your delivery today" — we surface stops + customers
+  // + total value rather than a redundant "1 משלוח" count.
   const todayCount = data.today.length;
   const todayStops = data.today.reduce((s, d) => s + d.stopCount, 0);
   const todayValue = data.today.reduce((s, d) => s + d.totalValue, 0);
+  const todayCustomers = new Set(
+    data.today.flatMap(d => d.customers.map(c => c.name))
+  ).size;
 
   // Max deliveries in any single day this week — for relative sizing of dots
   const maxDayCount = Math.max(1, ...data.weekSchedule.map(d => d.count));
@@ -321,15 +326,15 @@ export default function DriverDashboard({ user }: Props) {
 
       <div className="grid grid-cols-3 gap-3">
         <StatTile
-          value={todayCount}
-          label="משלוחים היום"
-          icon={<IconDelivery size={64} />}
-          tone={todayCount > 0 ? 'good' : 'neutral'}
+          value={todayStops}
+          label="תחנות היום"
+          icon={<IconMapPin size={64} />}
+          tone={todayStops > 0 ? 'good' : 'neutral'}
         />
         <StatTile
-          value={todayStops}
-          label="תחנות לפזר"
-          icon={<IconMapPin size={64} />}
+          value={todayCustomers}
+          label="לקוחות"
+          icon={<IconUser size={64} />}
           tone="neutral"
         />
         <StatTile
@@ -346,7 +351,7 @@ export default function DriverDashboard({ user }: Props) {
 
       {data.today.length > 0 && (
         <div className="rounded-2xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
-          <h3 className="text-sm font-bold mb-3 opacity-80">המשלוחים שלך היום</h3>
+          <h3 className="text-sm font-bold mb-3 opacity-80">{todayCount > 1 ? 'המשלוחים שלך היום' : 'המסלול שלך היום'}</h3>
           <div className="space-y-2">
             {data.today.map(del => (
               <button

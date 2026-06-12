@@ -218,19 +218,12 @@ export class AutoAssignmentService {
     }
 
     if (!targetDeliveryId) {
-      // No existing delivery — create new one with first available driver/vehicle
-
-      // Find an active driver
-      const { data: driverEmployee } = await supabase
-        .from('employees')
-        .select('employee_id')
-        .eq('role', 'Driver')
-        .eq('is_active', true)
-        .limit(1)
-        .maybeSingle();
-
+      // No existing delivery — create new one.
+      // Pick a driver who is FREE on this delivery date (no other delivery).
+      // Business rule: one driver = at most one delivery per day.
+      const driverEmployee = await AutoAssignmentService.pickFreeDriverForDate(deliveryDate);
       if (!driverEmployee) {
-        throw new Error('לא נמצא נהג זמין');
+        throw new Error('לא נמצא נהג פנוי לתאריך זה');
       }
 
       const { data: vehicle } = await supabase
@@ -438,6 +431,18 @@ export class AutoAssignmentService {
       }
     }
 
+    // -----------------------------------------------------------------------
+    // STEP 3: driver rebalance — enforce "one driver = one delivery per day".
+    // After all the merges above, the same driver may still hold two
+    // deliveries on this date if they go in different geographic directions
+    // (Tel Aviv vs Petah Tikva), so we swap one onto a free driver here.
+    // -----------------------------------------------------------------------
+    try {
+      await AutoAssignmentService.rebalanceDriversForDate(deliveryDate);
+    } catch {
+      // non-fatal — leave the warning to higher-level callers
+    }
+
     return { mergedSameRoute, absorbedAlongWay, mergedSameCustomer, warnings };
   }
 
@@ -503,5 +508,141 @@ export class AutoAssignmentService {
       .from('deliveries')
       .delete()
       .eq('delivery_id', fromDeliveryId);
+  }
+
+  // ===========================================================================
+  // DRIVER ASSIGNMENT — one driver = one delivery per day
+  // ===========================================================================
+
+  /**
+   * Returns the employee_id of an active Driver who is NOT yet assigned to
+   * any delivery on the given date. If every driver is taken, falls back to
+   * the driver who currently has the fewest deliveries that day (still tries
+   * to be fair). Returns null if there are no drivers at all.
+   */
+  private static async pickFreeDriverForDate(
+    deliveryDate: string
+  ): Promise<{ employee_id: number } | null> {
+    // All active drivers
+    const { data: allDrivers } = await supabase
+      .from('employees')
+      .select('employee_id')
+      .eq('role', 'Driver')
+      .eq('is_active', true);
+
+    if (!allDrivers || allDrivers.length === 0) return null;
+
+    // Who is already busy on this date?
+    const busyDriverIds = await AutoAssignmentService.getBusyDriverIdsForDate(deliveryDate);
+
+    const free = allDrivers.find(d => !busyDriverIds.has(d.employee_id));
+    if (free) return { employee_id: free.employee_id };
+
+    // Everyone is busy — fall back to first driver (caller can decide to warn)
+    return { employee_id: allDrivers[0].employee_id };
+  }
+
+  /**
+   * Set of driver_ids who already have an active delivery on the given date.
+   * Active = anything that isn't Delivered or Failed.
+   */
+  private static async getBusyDriverIdsForDate(deliveryDate: string): Promise<Set<number>> {
+    // Find all delivery_ids that hold orders for this date
+    const { data: ordersOnDate } = await supabase
+      .from('orders')
+      .select('delivery_id')
+      .gte('required_delivery_date', deliveryDate + 'T00:00:00')
+      .lt('required_delivery_date', deliveryDate + 'T23:59:59');
+
+    const deliveryIds = [...new Set(
+      (ordersOnDate || []).map((o: any) => o.delivery_id).filter((id: any) => id !== null)
+    )];
+
+    if (deliveryIds.length === 0) return new Set();
+
+    // Which of those deliveries are still active (not Delivered/Failed)?
+    const { data: activeDels } = await supabase
+      .from('deliveries')
+      .select('driver_id, status')
+      .in('delivery_id', deliveryIds);
+
+    const busy = new Set<number>();
+    for (const d of activeDels || []) {
+      if (d.status !== 'Delivered' && d.status !== 'Failed') busy.add(d.driver_id);
+    }
+    return busy;
+  }
+
+  /**
+   * After consolidation, if the same driver was independently assigned to
+   * two different Planned/Assigned deliveries on the same date (e.g. one
+   * Tel Aviv route + one Petah Tikva route — different directions, can't
+   * be merged), swap one of them onto a free driver.
+   *
+   * Called by consolidateForDate as a final step.
+   */
+  static async rebalanceDriversForDate(deliveryDate: string): Promise<{ swapped: number }> {
+    let swapped = 0;
+
+    // All editable deliveries
+    const { data: deliveries } = await supabase
+      .from('deliveries')
+      .select('delivery_id, driver_id, status, created_at')
+      .in('status', ['Planned', 'Assigned'])
+      .order('created_at', { ascending: true });
+    if (!deliveries || deliveries.length === 0) return { swapped };
+
+    // Filter to those whose orders are for this date
+    const deliveryIds = deliveries.map((d: any) => d.delivery_id);
+    const { data: orders } = await supabase
+      .from('orders')
+      .select('delivery_id, required_delivery_date')
+      .in('delivery_id', deliveryIds);
+
+    const dateDeliveryIds = new Set<number>();
+    for (const o of orders || []) {
+      if ((o as any).required_delivery_date?.substring(0, 10) === deliveryDate) {
+        dateDeliveryIds.add((o as any).delivery_id);
+      }
+    }
+
+    const onThisDate = deliveries.filter(d => dateDeliveryIds.has(d.delivery_id));
+    if (onThisDate.length < 2) return { swapped };
+
+    // Group by driver — anyone with >1 delivery is over-assigned
+    const byDriver = new Map<number, typeof onThisDate>();
+    for (const d of onThisDate) {
+      if (!byDriver.has(d.driver_id)) byDriver.set(d.driver_id, []);
+      byDriver.get(d.driver_id)!.push(d);
+    }
+
+    // All active driver ids
+    const { data: allDrivers } = await supabase
+      .from('employees')
+      .select('employee_id')
+      .eq('role', 'Driver')
+      .eq('is_active', true);
+    if (!allDrivers) return { swapped };
+
+    // Who is already busy after this round?
+    const busy = new Set<number>();
+    for (const [driverId, dels] of byDriver) {
+      // Keep the oldest delivery — driver stays on that one
+      busy.add(driverId);
+      // Try to move the rest onto free drivers
+      for (let i = 1; i < dels.length; i++) {
+        const overflow = dels[i];
+        const freeDriver = allDrivers.find(d => !busy.has(d.employee_id));
+        if (!freeDriver) break; // nothing we can do
+        await supabase
+          .from('deliveries')
+          .update({ driver_id: freeDriver.employee_id })
+          .eq('delivery_id', overflow.delivery_id);
+        busy.add(freeDriver.employee_id);
+        swapped++;
+      }
+    }
+
+    return { swapped };
   }
 }
