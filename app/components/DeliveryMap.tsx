@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { APIProvider, Map, AdvancedMarker, InfoWindow, useMap, useMapsLibrary, Pin } from '@vis.gl/react-google-maps';
+import { APIProvider, Map, useMap, useMapsLibrary } from '@vis.gl/react-google-maps';
 import { IconRoute, IconMapPin, IconClock, IconCheck, IconPhone, IconUser } from './Icons';
 
 interface InputStop {
@@ -38,10 +38,23 @@ interface DeliveryMapProps {
 }
 
 const FACTORY_ADDRESS = 'מושב מצליח, ישראל';
-const FACTORY_COORDS = { lat: 31.9099, lng: 34.8519 }; // מושב מצליח (Moshav Matzliah, near Ramla)
+const FACTORY_COORDS = { lat: 31.9099, lng: 34.8519 };
 
-// Polyline-only renderer (suppresses default markers — we render our own)
-function PolylineRenderer({ stops }: { stops: { address: string }[] }) {
+/**
+ * Renders the actual route polyline and the default Google A/B/C/D markers.
+ * This guarantees the stops are always visible on the map — no mapId
+ * registration required, no geocoding pitfalls.
+ *
+ * Reports back the leg geometry so the caller can attach InfoWindow
+ * overlays at the exact stop coordinates.
+ */
+function RouteRenderer({
+  stops,
+  onLegsReady,
+}: {
+  stops: { address: string }[];
+  onLegsReady: (legs: google.maps.DirectionsLeg[]) => void;
+}) {
   const map = useMap();
   const routesLib = useMapsLibrary('routes');
 
@@ -51,14 +64,14 @@ function PolylineRenderer({ stops }: { stops: { address: string }[] }) {
     const directionsService = new routesLib.DirectionsService();
     const directionsRenderer = new routesLib.DirectionsRenderer({
       map,
-      suppressMarkers: true, // We'll render custom markers
-      polylineOptions: { strokeColor: '#2456E8', strokeWeight: 4, strokeOpacity: 0.7 },
+      suppressMarkers: false, // Show Google's default A/B/C/D markers
+      polylineOptions: { strokeColor: '#2456E8', strokeWeight: 4, strokeOpacity: 0.85 },
     });
 
     const waypoints = stops.slice(0, -1).map(s => ({ location: s.address, stopover: true }));
 
     directionsService.route({
-      origin: FACTORY_COORDS, // Precise coords anchor the start at מושב מצליח
+      origin: FACTORY_COORDS,
       destination: stops[stops.length - 1].address,
       waypoints,
       optimizeWaypoints: true,
@@ -66,8 +79,8 @@ function PolylineRenderer({ stops }: { stops: { address: string }[] }) {
       region: 'IL',
     }).then(result => {
       directionsRenderer.setDirections(result);
+      onLegsReady(result.routes[0].legs);
 
-      // Fit bounds to show all stops
       const bounds = new google.maps.LatLngBounds();
       result.routes[0].legs.forEach(leg => {
         bounds.extend(leg.start_location);
@@ -77,131 +90,9 @@ function PolylineRenderer({ stops }: { stops: { address: string }[] }) {
     }).catch(err => console.error('Directions error:', err));
 
     return () => { directionsRenderer.setMap(null); };
-  }, [map, routesLib, origin, stops]);
+  }, [map, routesLib, stops, onLegsReady]);
 
   return null;
-}
-
-// Geocoder helper for getting coordinates
-function useGeocodedStops(stops: InputStop[]) {
-  const geocoding = useMapsLibrary('geocoding');
-  const [geocoded, setGeocoded] = useState<Array<InputStop & { lat: number; lng: number }>>([]);
-
-  useEffect(() => {
-    if (!geocoding || stops.length === 0) return;
-    const geocoder = new geocoding.Geocoder();
-    const promises = stops.map(stop =>
-      geocoder.geocode({ address: stop.address, region: 'IL' }).then(result => {
-        const loc = result.results[0]?.geometry.location;
-        return {
-          ...stop,
-          lat: loc?.lat() ?? FACTORY_COORDS.lat,
-          lng: loc?.lng() ?? FACTORY_COORDS.lng,
-        };
-      }).catch(() => ({ ...stop, lat: FACTORY_COORDS.lat, lng: FACTORY_COORDS.lng }))
-    );
-    Promise.all(promises).then(setGeocoded);
-  }, [geocoding, stops]);
-
-  return geocoded;
-}
-
-// Custom marker with hover info window
-function StopMarker({
-  position,
-  stopNumber,
-  stop,
-  routeStop,
-}: {
-  position: { lat: number; lng: number };
-  stopNumber: number;
-  stop: InputStop;
-  routeStop?: RouteStop;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <>
-      <AdvancedMarker
-        position={position}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onClick={() => setOpen(o => !o)}
-      >
-        <Pin background="#2456E8" borderColor="#0A1A2F" glyphColor="#fff">
-          <span style={{ fontWeight: 700 }}>{stopNumber}</span>
-        </Pin>
-      </AdvancedMarker>
-      {open && (
-        <InfoWindow position={position} onCloseClick={() => setOpen(false)} headerDisabled>
-          <div style={{
-            direction: 'rtl', fontFamily: 'Heebo, sans-serif',
-            padding: '6px 10px', minWidth: '220px',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-              <div style={{
-                width: '24px', height: '24px', borderRadius: '50%',
-                background: '#2456E8', color: '#fff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '12px', fontWeight: 700,
-              }}>{stopNumber}</div>
-              <div style={{ fontWeight: 700, fontSize: '14px', color: '#0A1A2F' }}>{stop.customerName}</div>
-            </div>
-            <div style={{ fontSize: '12px', color: '#555', marginBottom: '4px', lineHeight: 1.4 }}>
-              📍 {stop.address}
-            </div>
-            {stop.phone && (
-              <div style={{ fontSize: '12px', color: '#555', marginBottom: '4px' }} dir="ltr">
-                ☎️ {stop.phone}
-              </div>
-            )}
-            {routeStop && (
-              <div style={{
-                marginTop: '8px', paddingTop: '8px',
-                borderTop: '1px solid #eee',
-                display: 'flex', gap: '12px', fontSize: '11px', color: '#777',
-              }}>
-                <span>⏱ הגעה: <strong style={{ color: '#2456E8' }} dir="ltr">{routeStop.eta}</strong></span>
-                <span>📏 {routeStop.distance}</span>
-              </div>
-            )}
-          </div>
-        </InfoWindow>
-      )}
-    </>
-  );
-}
-
-// Factory origin marker
-function FactoryMarker({ position }: { position: { lat: number; lng: number } }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <AdvancedMarker
-        position={position}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-      >
-        <Pin background="#22c55e" borderColor="#0A1A2F" glyphColor="#fff" />
-      </AdvancedMarker>
-      {open && (
-        <InfoWindow position={position} onCloseClick={() => setOpen(false)} headerDisabled>
-          <div style={{
-            direction: 'rtl', fontFamily: 'Heebo, sans-serif',
-            padding: '6px 10px',
-          }}>
-            <div style={{ fontWeight: 700, fontSize: '14px', color: '#0A1A2F', marginBottom: '4px' }}>
-              🏭 מפעל ד״ר פיתה
-            </div>
-            <div style={{ fontSize: '12px', color: '#555' }}>{FACTORY_ADDRESS}</div>
-            <div style={{ fontSize: '11px', color: '#22c55e', marginTop: '4px', fontWeight: 600 }}>
-              נקודת יציאה • 08:00
-            </div>
-          </div>
-        </InfoWindow>
-      )}
-    </>
-  );
 }
 
 export default function DeliveryMap({ stops: inputStops, userRole, deliveryStatus, onStartDelivery }: DeliveryMapProps) {
@@ -234,12 +125,9 @@ export default function DeliveryMap({ stops: inputStops, userRole, deliveryStatu
 
   const openInGoogleMaps = () => {
     if (inputStops.length === 0) return;
-    // Use precise coordinates so the route always starts at the factory in מושב מצליח
     const origin = `${FACTORY_COORDS.lat},${FACTORY_COORDS.lng}`;
     const destination = encodeURIComponent(inputStops[inputStops.length - 1].address);
     const waypoints = inputStops.slice(0, -1).map(s => encodeURIComponent(s.address)).join('|');
-    // No dir_action=navigate → Google Maps shows the route preview with A, B, C, D stops
-    // Driver can review the plan and tap "Start" to begin turn-by-turn navigation
     const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints ? `&waypoints=${waypoints}` : ''}&travelmode=driving`;
     window.open(url, '_blank');
     onStartDelivery?.();
@@ -249,19 +137,23 @@ export default function DeliveryMap({ stops: inputStops, userRole, deliveryStatu
     return <p className="text-sm opacity-40 text-center py-4">אין תחנות לתכנון מסלול</p>;
   }
 
+  const showStartButton = isDriver && deliveryStatus !== 'Delivered' && deliveryStatus !== 'Failed';
+
   return (
     <div className="space-y-4">
-      {/* Driver navigation banner */}
-      {isDriver && (deliveryStatus === 'Loaded' || deliveryStatus === 'On The Way') && (
+      {/* Driver navigation banner — visible to drivers throughout the delivery lifecycle */}
+      {showStartButton && (
         <div className="rounded-xl p-4" style={{ background: 'linear-gradient(135deg, #2456E8 0%, #1a3a6b 100%)' }}>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="text-white">
-              <p className="font-bold text-base mb-0.5">מוכן לצאת לדרך?</p>
-              <p className="text-xs opacity-80">פתח את Google Maps במצב ניווט מלא עם כל התחנות</p>
+              <p className="font-bold text-base mb-0.5">פתח ניווט במכשיר שלך</p>
+              <p className="text-xs opacity-80">
+                המסלול ייפתח ב-Google Maps עם כל התחנות מסומנות (A, B, C…) ויציאה ממושב מצליח
+              </p>
             </div>
             <button
               onClick={openInGoogleMaps}
-              className="px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all"
+              className="px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap"
               style={{ background: '#fff', color: '#2456E8' }}>
               <IconRoute size={16} /> התחל ניווט
             </button>
@@ -276,7 +168,6 @@ export default function DeliveryMap({ stops: inputStops, userRole, deliveryStatu
             <Map
               defaultCenter={FACTORY_COORDS}
               defaultZoom={11}
-              mapId="delivery-map"
               gestureHandling="greedy"
               disableDefaultUI={false}
               zoomControl={true}
@@ -284,8 +175,10 @@ export default function DeliveryMap({ stops: inputStops, userRole, deliveryStatu
               mapTypeControl={false}
               fullscreenControl={true}
             >
-              <PolylineRenderer stops={inputStops.map(s => ({ address: s.address }))} />
-              <MapMarkers inputStops={inputStops} routeData={routeData} />
+              <RouteRenderer
+                stops={inputStops.map(s => ({ address: s.address }))}
+                onLegsReady={() => { /* legs available if we want overlays in future */ }}
+              />
             </Map>
           </div>
         </APIProvider>
@@ -298,7 +191,6 @@ export default function DeliveryMap({ stops: inputStops, userRole, deliveryStatu
         </div>
       )}
 
-      {/* Route summary */}
       {loading && (
         <div className="text-center py-3">
           <div className="inline-block w-5 h-5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--ht-border)', borderTopColor: 'var(--ht-accent)' }}></div>
@@ -330,56 +222,49 @@ export default function DeliveryMap({ stops: inputStops, userRole, deliveryStatu
             <p className="text-xs text-center opacity-30 mb-2">נתוני מסלול משוערים (ללא Google Maps API)</p>
           )}
 
-          {/* Stops timeline */}
+          {/* Stops timeline — full customer details (this is the hover info, always visible) */}
           <div className="space-y-2">
-            <div className="flex items-center gap-3 p-2 rounded-lg" style={{ background: 'var(--ht-success-bg)' }}>
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: 'var(--ht-success)' }}>
+            <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--ht-success-bg)', border: '1px solid var(--ht-border)' }}>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ background: 'var(--ht-success)' }}>
                 <IconMapPin size={14} />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium">מפעל ד״ר פיתה — נקודת יציאה</p>
-                <p className="text-xs opacity-50">{routeData.origin} · יציאה 08:00</p>
+                <p className="text-sm font-bold">מפעל ד״ר פיתה — נקודת יציאה</p>
+                <p className="text-xs opacity-60">{routeData.origin} · יציאה 08:00</p>
               </div>
             </div>
 
-            {routeData.stops.map((stop, i) => (
-              <div key={i} className="flex items-center gap-3 p-2 rounded-lg" style={{ background: 'var(--ht-surface-container)' }}>
-                <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ background: 'var(--ht-accent)' }}>
-                  {stop.stopNumber}
+            {routeData.stops.map((stop, i) => {
+              const original = inputStops[i];
+              const letter = String.fromCharCode(65 + i); // A, B, C...
+              return (
+                <div key={i} className="flex items-start gap-3 p-3 rounded-xl transition-all hover:shadow-sm"
+                  style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0" style={{ background: 'var(--ht-accent)' }}>
+                    {letter}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold" style={{ color: 'var(--ht-primary)' }}>{stop.customerName}</p>
+                    <div className="flex items-center gap-1.5 mt-1 text-xs opacity-60">
+                      <IconMapPin size={11} /> {stop.address}
+                    </div>
+                    {original?.phone && (
+                      <div className="flex items-center gap-1.5 mt-0.5 text-xs opacity-60">
+                        <IconPhone size={11} /> <span dir="ltr">{original.phone}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-end shrink-0">
+                    <p className="text-sm font-bold" style={{ color: 'var(--ht-accent)' }} dir="ltr">{stop.eta}</p>
+                    <p className="text-[10px] opacity-40">{stop.distance}</p>
+                    <p className="text-[10px] opacity-40">{stop.duration}</p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{stop.customerName}</p>
-                  <p className="text-xs opacity-50">{stop.address}</p>
-                </div>
-                <div className="text-end shrink-0">
-                  <p className="text-sm font-bold" style={{ color: 'var(--ht-accent)' }} dir="ltr">{stop.eta}</p>
-                  <p className="text-[10px] opacity-40">{stop.distance} · {stop.duration}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
     </div>
-  );
-}
-
-// Helper component: renders factory + stop markers, geocoding addresses internally
-function MapMarkers({ inputStops, routeData }: { inputStops: InputStop[]; routeData: RouteData | null }) {
-  const geocoded = useGeocodedStops(inputStops);
-
-  return (
-    <>
-      <FactoryMarker position={FACTORY_COORDS} />
-      {geocoded.map((stop, i) => (
-        <StopMarker
-          key={stop.orderId}
-          position={{ lat: stop.lat, lng: stop.lng }}
-          stopNumber={i + 1}
-          stop={stop}
-          routeStop={routeData?.stops[i]}
-        />
-      ))}
-    </>
   );
 }
