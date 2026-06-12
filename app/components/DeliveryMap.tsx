@@ -38,10 +38,10 @@ interface DeliveryMapProps {
 }
 
 const FACTORY_ADDRESS = 'מושב מצליח, ישראל';
-const FACTORY_COORDS = { lat: 31.9081, lng: 34.8503 }; // מושב מצליח approximate
+const FACTORY_COORDS = { lat: 31.9099, lng: 34.8519 }; // מושב מצליח (Moshav Matzliah, near Ramla)
 
 // Polyline-only renderer (suppresses default markers — we render our own)
-function PolylineRenderer({ origin, stops }: { origin: string; stops: { address: string }[] }) {
+function PolylineRenderer({ stops }: { stops: { address: string }[] }) {
   const map = useMap();
   const routesLib = useMapsLibrary('routes');
 
@@ -58,7 +58,7 @@ function PolylineRenderer({ origin, stops }: { origin: string; stops: { address:
     const waypoints = stops.slice(0, -1).map(s => ({ location: s.address, stopover: true }));
 
     directionsService.route({
-      origin,
+      origin: FACTORY_COORDS, // Precise coords anchor the start at מושב מצליח
       destination: stops[stops.length - 1].address,
       waypoints,
       optimizeWaypoints: true,
@@ -234,10 +234,13 @@ export default function DeliveryMap({ stops: inputStops, userRole, deliveryStatu
 
   const openInGoogleMaps = () => {
     if (inputStops.length === 0) return;
-    const origin = encodeURIComponent(FACTORY_ADDRESS);
+    // Use precise coordinates so the route always starts at the factory in מושב מצליח
+    const origin = `${FACTORY_COORDS.lat},${FACTORY_COORDS.lng}`;
     const destination = encodeURIComponent(inputStops[inputStops.length - 1].address);
     const waypoints = inputStops.slice(0, -1).map(s => encodeURIComponent(s.address)).join('|');
-    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints ? `&waypoints=${waypoints}` : ''}&travelmode=driving&dir_action=navigate`;
+    // No dir_action=navigate → Google Maps shows the route preview with A, B, C, D stops
+    // Driver can review the plan and tap "Start" to begin turn-by-turn navigation
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints ? `&waypoints=${waypoints}` : ''}&travelmode=driving`;
     window.open(url, '_blank');
     onStartDelivery?.();
   };
@@ -281,7 +284,7 @@ export default function DeliveryMap({ stops: inputStops, userRole, deliveryStatu
               mapTypeControl={false}
               fullscreenControl={true}
             >
-              <PolylineRenderer origin={FACTORY_ADDRESS} stops={inputStops.map(s => ({ address: s.address }))} />
+              <PolylineRenderer stops={inputStops.map(s => ({ address: s.address }))} />
               <MapMarkers inputStops={inputStops} routeData={routeData} />
             </Map>
           </div>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const FACTORY_ADDRESS = 'מושב מצליח, ישראל';
+const FACTORY_COORDS = '31.9099,34.8519'; // Precise lat,lng for מושב מצליח
 const GOOGLE_MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 interface Stop {
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
           : '';
 
         const params = new URLSearchParams({
-          origin: FACTORY_ADDRESS,
+          origin: FACTORY_COORDS, // Precise lat,lng anchors the route at מושב מצליח
           destination: destination,
           key: GOOGLE_MAPS_KEY,
           language: 'he',
