@@ -86,13 +86,14 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // If date filter provided, show only deliveries that have orders for that date
-    // Also always show active deliveries (OnTheWay, On The Way) regardless of date
+    // If a date filter is provided, return ONLY deliveries that have orders
+    // for that date. We previously also showed every On The Way delivery
+    // regardless of date, but that caused the UI to show a stale delivery
+    // (e.g. 5/6 still on the road) on top of a current-day delivery,
+    // making it look as if there were two trucks heading to the same
+    // customer on the same day.
     if (filterDate) {
-      enriched = enriched.filter((d: any) =>
-        deliveryHasDateMatch.has(d.deliveryId) ||
-        d.status === 'OnTheWay' || d.status === 'On The Way'
-      );
+      enriched = enriched.filter((d: any) => deliveryHasDateMatch.has(d.deliveryId));
     }
 
     return NextResponse.json(enriched);
