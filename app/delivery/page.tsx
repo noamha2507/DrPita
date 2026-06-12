@@ -76,8 +76,17 @@ export default function DeliveryPage() {
     const empId = user.role === 'Manager' ? undefined : user.employeeId;
     setCurrentEmployeeId(empId);
     const today = new Date().toISOString().split('T')[0];
-    loadList(empId, today);
-    autoAssignPending(today);
+    // Run one-time global consolidation to clean up any stale legacy data
+    // (deliveries that pre-date the consolidation logic) before showing the list
+    (async () => {
+      if (user.role === 'Manager') {
+        try {
+          await fetch('/api/delivery/consolidate-all', { method: 'POST' });
+        } catch { /* non-fatal */ }
+      }
+      await loadList(empId, today);
+      autoAssignPending(today);
+    })();
   }, [router]);
 
   const loadList = async (driverId?: number, date?: string) => {

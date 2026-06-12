@@ -152,13 +152,14 @@ export class AutoAssignmentService {
    * - If no active delivery → create new one with first available driver/vehicle
    */
   private static async attachOrderToDelivery(orderId: number, deliveryDate: string): Promise<number | undefined> {
-    // Determine the route key for this order based on customer address
+    // Determine the customer + route for this order
     const { data: orderInfo } = await supabase
       .from('orders')
       .select('customer_id, customers(address)')
       .eq('order_id', orderId)
       .maybeSingle();
 
+    const newOrderCustomerId = (orderInfo as any)?.customer_id;
     const customerAddress = (orderInfo as any)?.customers?.address || '';
     const newOrderRouteKey: RouteKey = getRouteKeyFromAddress(customerAddress);
 
@@ -169,32 +170,50 @@ export class AutoAssignmentService {
       .in('status', ['Planned', 'Assigned', 'Loaded'])
       .order('created_at', { ascending: false });
 
-    // Find a delivery that:
-    //  1. Has orders for the same date
-    //  2. Has orders for the same route (geographic area)
     let targetDeliveryId: number | undefined;
+
     if (existingDeliveries && existingDeliveries.length > 0) {
+      // Pre-load orders for all candidate deliveries (one round-trip)
+      const candidateIds = existingDeliveries.map((d: any) => d.delivery_id);
+      const { data: allOrdersInCandidates } = await supabase
+        .from('orders')
+        .select('order_id, delivery_id, customer_id, required_delivery_date, customers(address)')
+        .in('delivery_id', candidateIds);
+
+      // Group by delivery
+      const ordersByDelivery = new Map<number, any[]>();
+      for (const o of allOrdersInCandidates || []) {
+        if (!ordersByDelivery.has(o.delivery_id)) ordersByDelivery.set(o.delivery_id, []);
+        ordersByDelivery.get(o.delivery_id)!.push(o);
+      }
+
+      // PRIORITY 1: same-customer match — if this customer already has a
+      // delivery on this date, ALWAYS use it. Same customer + same day = one truck.
       for (const del of existingDeliveries) {
-        const { data: ordersInDelivery } = await supabase
-          .from('orders')
-          .select('required_delivery_date, customers(address)')
-          .eq('delivery_id', del.delivery_id);
+        const orders = ordersByDelivery.get(del.delivery_id) || [];
+        if (orders.length === 0) continue;
+        const matchesDate = orders.every((o: any) => o.required_delivery_date?.substring(0, 10) === deliveryDate);
+        if (!matchesDate) continue;
+        const hasCustomer = orders.some((o: any) => o.customer_id === newOrderCustomerId);
+        if (hasCustomer) {
+          targetDeliveryId = del.delivery_id;
+          break;
+        }
+      }
 
-        if (!ordersInDelivery || ordersInDelivery.length === 0) continue;
-
-        // Check date match
-        const firstOrder = ordersInDelivery[0];
-        const rd = firstOrder.required_delivery_date;
-        if (!rd || rd.substring(0, 10) !== deliveryDate) continue;
-
-        // Check route match — all orders in delivery should be on the same route
-        const deliveryRouteKey: RouteKey = getRouteKeyFromAddress(
-          (firstOrder as any).customers?.address || ''
-        );
-        if (deliveryRouteKey !== newOrderRouteKey) continue;
-
-        targetDeliveryId = del.delivery_id;
-        break;
+      // PRIORITY 2: same-route match — fall back to grouping by area
+      if (!targetDeliveryId) {
+        for (const del of existingDeliveries) {
+          const orders = ordersByDelivery.get(del.delivery_id) || [];
+          if (orders.length === 0) continue;
+          const matchesDate = orders.every((o: any) => o.required_delivery_date?.substring(0, 10) === deliveryDate);
+          if (!matchesDate) continue;
+          const firstAddress = (orders[0] as any).customers?.address || '';
+          const deliveryRouteKey: RouteKey = getRouteKeyFromAddress(firstAddress);
+          if (deliveryRouteKey !== newOrderRouteKey) continue;
+          targetDeliveryId = del.delivery_id;
+          break;
+        }
       }
     }
 
@@ -271,12 +290,13 @@ export class AutoAssignmentService {
    */
   static async consolidateForDate(
     deliveryDate: string
-  ): Promise<{ mergedSameRoute: number; absorbedAlongWay: number; warnings: string[] }> {
+  ): Promise<{ mergedSameRoute: number; absorbedAlongWay: number; mergedSameCustomer: number; warnings: string[] }> {
     const warnings: string[] = [];
     let mergedSameRoute = 0;
     let absorbedAlongWay = 0;
+    let mergedSameCustomer = 0;
 
-    // Load all editable active deliveries for the date with their orders
+    // Load all editable active deliveries
     const { data: deliveries } = await supabase
       .from('deliveries')
       .select('delivery_id, status, created_at')
@@ -284,27 +304,27 @@ export class AutoAssignmentService {
       .order('created_at', { ascending: true });
 
     if (!deliveries || deliveries.length === 0) {
-      return { mergedSameRoute, absorbedAlongWay, warnings };
+      return { mergedSameRoute, absorbedAlongWay, mergedSameCustomer, warnings };
     }
 
-    // Gather orders per delivery (for the chosen date) + their route
+    // Gather orders per delivery (for the chosen date) + their route + customer ids
     type DeliveryRouteInfo = {
       deliveryId: number;
       createdAt: string;
       routeKey: RouteKey;
       orderIds: number[];
+      customerIds: Set<number>;
     };
     const dateMatched: DeliveryRouteInfo[] = [];
 
     for (const del of deliveries) {
       const { data: ordersInDel } = await supabase
         .from('orders')
-        .select('order_id, required_delivery_date, customers(address)')
+        .select('order_id, customer_id, required_delivery_date, customers(address)')
         .eq('delivery_id', del.delivery_id);
 
       if (!ordersInDel || ordersInDel.length === 0) continue;
 
-      // Only consider deliveries whose orders are for this date
       const matchesDate = ordersInDel.every(
         (o: any) => o.required_delivery_date?.substring(0, 10) === deliveryDate
       );
@@ -316,27 +336,65 @@ export class AutoAssignmentService {
         createdAt: del.created_at,
         routeKey: getRouteKeyFromAddress(firstAddress),
         orderIds: ordersInDel.map((o: any) => o.order_id),
+        customerIds: new Set(ordersInDel.map((o: any) => o.customer_id)),
       });
     }
 
     if (dateMatched.length === 0) {
-      return { mergedSameRoute, absorbedAlongWay, warnings };
+      return { mergedSameRoute, absorbedAlongWay, mergedSameCustomer, warnings };
     }
+
+    // -----------------------------------------------------------------------
+    // STEP 0: same-customer merge — if a customer appears in 2+ deliveries
+    // on this date, force-merge them. Same customer + same day = one truck.
+    // -----------------------------------------------------------------------
+    const customerToDeliveries = new Map<number, DeliveryRouteInfo[]>();
+    for (const d of dateMatched) {
+      for (const custId of d.customerIds) {
+        if (!customerToDeliveries.has(custId)) customerToDeliveries.set(custId, []);
+        const list = customerToDeliveries.get(custId)!;
+        if (!list.includes(d)) list.push(d);
+      }
+    }
+
+    // Build merge groups for customers that span multiple deliveries
+    const mergedDeliveryIds = new Set<number>();
+    for (const [, dels] of customerToDeliveries) {
+      if (dels.length < 2) continue;
+      // Skip if any of these were already absorbed in a previous iteration
+      const stillAlive = dels.filter(d => !mergedDeliveryIds.has(d.deliveryId));
+      if (stillAlive.length < 2) continue;
+      const keeper = stillAlive[0]; // oldest
+      for (let i = 1; i < stillAlive.length; i++) {
+        const losing = stillAlive[i];
+        await AutoAssignmentService.reassignOrdersAndDeleteDelivery(
+          losing.orderIds,
+          losing.deliveryId,
+          keeper.deliveryId
+        );
+        keeper.orderIds.push(...losing.orderIds);
+        for (const c of losing.customerIds) keeper.customerIds.add(c);
+        mergedSameCustomer += losing.orderIds.length;
+        mergedDeliveryIds.add(losing.deliveryId);
+      }
+    }
+
+    // Filter out absorbed ones
+    const stillAlive = dateMatched.filter(d => !mergedDeliveryIds.has(d.deliveryId));
 
     // -----------------------------------------------------------------------
     // STEP 1: same-route merge — keep the oldest delivery per route, move
     // all orders from later deliveries into it, delete the empty ones.
     // -----------------------------------------------------------------------
     const byRoute = new Map<RouteKey, DeliveryRouteInfo[]>();
-    for (const d of dateMatched) {
+    for (const d of stillAlive) {
       if (!byRoute.has(d.routeKey)) byRoute.set(d.routeKey, []);
       byRoute.get(d.routeKey)!.push(d);
     }
 
     for (const [, group] of byRoute) {
       if (group.length < 2) continue;
-      // Group is sorted by createdAt ascending because the parent query was
-      const keeper = group[0];
+      const keeper = group[0]; // oldest
       const toMerge = group.slice(1);
       for (const merge of toMerge) {
         await AutoAssignmentService.reassignOrdersAndDeleteDelivery(
@@ -349,7 +407,7 @@ export class AutoAssignmentService {
       }
     }
 
-    // Rebuild byRoute with the keepers only (deleted ones are gone)
+    // Rebuild survivors
     const survivors: DeliveryRouteInfo[] = [];
     for (const [, group] of byRoute) survivors.push(group[0]);
 
@@ -380,7 +438,50 @@ export class AutoAssignmentService {
       }
     }
 
-    return { mergedSameRoute, absorbedAlongWay, warnings };
+    return { mergedSameRoute, absorbedAlongWay, mergedSameCustomer, warnings };
+  }
+
+  /**
+   * Run consolidation for EVERY date that has active editable deliveries.
+   * Catches stale data from older orders that pre-dated consolidation.
+   * Cheap to run because most dates have 0 or 1 delivery and exit fast.
+   */
+  static async consolidateAllUpcoming(): Promise<{
+    datesProcessed: number;
+    totalMerges: number;
+  }> {
+    const { data: deliveries } = await supabase
+      .from('deliveries')
+      .select('delivery_id')
+      .in('status', ['Planned', 'Assigned']);
+
+    if (!deliveries || deliveries.length === 0) {
+      return { datesProcessed: 0, totalMerges: 0 };
+    }
+
+    // Collect every distinct delivery date that appears in active deliveries
+    const deliveryIds = deliveries.map((d: any) => d.delivery_id);
+    const { data: orders } = await supabase
+      .from('orders')
+      .select('required_delivery_date')
+      .in('delivery_id', deliveryIds);
+
+    const dates = new Set<string>();
+    for (const o of orders || []) {
+      const rd = (o as any).required_delivery_date;
+      if (rd) dates.add(rd.substring(0, 10));
+    }
+
+    let totalMerges = 0;
+    for (const date of dates) {
+      try {
+        const r = await AutoAssignmentService.consolidateForDate(date);
+        totalMerges += r.mergedSameRoute + r.absorbedAlongWay + r.mergedSameCustomer;
+      } catch {
+        // continue — one bad date shouldn't block the others
+      }
+    }
+    return { datesProcessed: dates.size, totalMerges };
   }
 
   /**
