@@ -28,8 +28,27 @@ export async function POST(request: NextRequest) {
 
     if (ordErr) throw ordErr;
 
+    // Even when there are no orphans we still run a consolidation pass
+    // so any earlier-created same-route or along-the-way deliveries get merged.
     if (!orphans || orphans.length === 0) {
-      return NextResponse.json({ success: true, assignedCount: 0 });
+      let mergedSameRoute = 0;
+      let absorbedAlongWay = 0;
+      const warningsOnlyConsolidation: string[] = [];
+      try {
+        const consolidation = await AutoAssignmentService.consolidateForDate(deliveryDate);
+        mergedSameRoute = consolidation.mergedSameRoute;
+        absorbedAlongWay = consolidation.absorbedAlongWay;
+        if (consolidation.warnings.length > 0) warningsOnlyConsolidation.push(...consolidation.warnings);
+      } catch (e: any) {
+        warningsOnlyConsolidation.push(`איחוד משלוחים נכשל: ${e.message}`);
+      }
+      return NextResponse.json({
+        success: true,
+        assignedCount: 0,
+        mergedSameRoute,
+        absorbedAlongWay,
+        warnings: warningsOnlyConsolidation,
+      });
     }
 
     // Run automation for each orphan
@@ -48,10 +67,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Final consolidation pass — merge same-route deliveries and absorb stops along the way
+    let mergedSameRoute = 0;
+    let absorbedAlongWay = 0;
+    try {
+      const consolidation = await AutoAssignmentService.consolidateForDate(deliveryDate);
+      mergedSameRoute = consolidation.mergedSameRoute;
+      absorbedAlongWay = consolidation.absorbedAlongWay;
+      if (consolidation.warnings.length > 0) warnings.push(...consolidation.warnings);
+    } catch (e: any) {
+      warnings.push(`איחוד משלוחים נכשל: ${e.message}`);
+    }
+
     return NextResponse.json({
       success: true,
       assignedCount,
       totalOrphans: orphans.length,
+      mergedSameRoute,
+      absorbedAlongWay,
       warnings,
     });
   } catch (error: any) {
