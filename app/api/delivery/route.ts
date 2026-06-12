@@ -11,6 +11,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'נדרש מזהה משלוח וחתימה' }, { status: 400 });
     }
 
+    // Same date guard as PATCH — closing a delivery is even more sensitive,
+    // it must only happen on the day the goods physically go out.
+    const { data: firstOrder } = await supabase
+      .from('orders')
+      .select('required_delivery_date')
+      .eq('delivery_id', deliveryId)
+      .limit(1)
+      .maybeSingle();
+
+    const requiredDate = (firstOrder as any)?.required_delivery_date?.substring(0, 10);
+    if (requiredDate) {
+      const today = new Date().toISOString().substring(0, 10);
+      if (today < requiredDate) {
+        const display = new Date(requiredDate).toLocaleDateString('he-IL', {
+          weekday: 'long', day: 'numeric', month: 'long',
+        });
+        return NextResponse.json(
+          { error: `לא ניתן לסגור משלוח לפני יום האספקה (${display}).` },
+          { status: 400 }
+        );
+      }
+    }
+
     const result = await DeliveryController.completeDelivery(deliveryId, signatureFile);
     return NextResponse.json(result);
   } catch (error: any) {
@@ -120,6 +143,31 @@ export async function PATCH(request: NextRequest) {
     const validStatuses = ['Planned', 'Assigned', 'Loaded', 'On The Way', 'Delivered', 'Failed'];
     if (!validStatuses.includes(newStatus)) {
       return NextResponse.json({ error: `סטטוס לא חוקי: ${newStatus}` }, { status: 400 });
+    }
+
+    // Business rule: a delivery's status cannot move forward before its
+    // scheduled date. The whole lifecycle (Assigned → Loaded → On The Way
+    // → Delivered) belongs to the day the goods are actually shipped.
+    // The delivery's date is derived from its orders' required_delivery_date.
+    const { data: firstOrder } = await supabase
+      .from('orders')
+      .select('required_delivery_date')
+      .eq('delivery_id', deliveryId)
+      .limit(1)
+      .maybeSingle();
+
+    const requiredDate = (firstOrder as any)?.required_delivery_date?.substring(0, 10);
+    if (requiredDate) {
+      const today = new Date().toISOString().substring(0, 10);
+      if (today < requiredDate) {
+        const display = new Date(requiredDate).toLocaleDateString('he-IL', {
+          weekday: 'long', day: 'numeric', month: 'long',
+        });
+        return NextResponse.json(
+          { error: `לא ניתן לעדכן את המשלוח לפני יום האספקה (${display}). אפשר לנהל אותו רק ביום עצמו.` },
+          { status: 400 }
+        );
+      }
     }
 
     await Delivery.updateStatus(deliveryId, newStatus);

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import AppHeader from '../components/AppHeader';
 import { card, getStatusBadgeStyle } from '../components/styles';
-import { IconDelivery, IconCheck, IconX, IconAlertTriangle, IconRoute, IconOrders, IconInventory, IconMapPin, IconPhone, IconUser, IconMap } from '../components/Icons';
+import { IconDelivery, IconCheck, IconX, IconAlertTriangle, IconRoute, IconOrders, IconInventory, IconMapPin, IconPhone, IconUser, IconMap, IconClock } from '../components/Icons';
 import dynamic from 'next/dynamic';
 const DeliveryMap = dynamic(() => import('../components/DeliveryMap'), { ssr: false });
 
@@ -307,6 +307,16 @@ export default function DeliveryPage() {
             const idx = si(detail.delivery.status);
             const isOnTheWay = detail.delivery.status === 'OnTheWay' || detail.delivery.status === 'On The Way';
             const isDelivered = detail.delivery.status === 'Delivered';
+
+            // Business rule: a delivery can only be managed on its scheduled
+            // day. Compare today's date to the orders' required_delivery_date.
+            const todayStr = new Date().toISOString().substring(0, 10);
+            const requiredDateStr = detail.orders[0]?.requiredDate?.substring(0, 10) || null;
+            const isFuture = requiredDateStr ? todayStr < requiredDateStr : false;
+            const requiredDateDisplay = requiredDateStr
+              ? new Date(requiredDateStr).toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })
+              : '';
+
             return (
               <>
                 {/* Header */}
@@ -508,9 +518,9 @@ export default function DeliveryPage() {
                         </div>
                         <div className="flex gap-2">
                           <button onClick={clearSignature} className="btn-ghost px-4 py-2 text-sm">ניקוי</button>
-                          <button onClick={handleComplete} disabled={loading || !hasSigned}
+                          <button onClick={handleComplete} disabled={loading || !hasSigned || isFuture}
                             className="btn-primary flex-1 py-2.5 text-sm disabled:opacity-50">
-                            {loading ? 'סוגר...' : 'אישור מסירה וסגירת משלוח'}
+                            {loading ? 'סוגר...' : isFuture ? `נעול עד ${requiredDateDisplay}` : 'אישור מסירה וסגירת משלוח'}
                           </button>
                         </div>
                       </div>
@@ -535,20 +545,35 @@ export default function DeliveryPage() {
                 {!isDelivered && (
                   <div className="grid grid-cols-3 gap-3" style={{ alignItems: 'stretch' }}>
                     {/* Next action */}
-                    <div className="rounded-xl p-4" style={{ background: 'var(--ht-info-bg)', border: '1px solid var(--ht-border)' }}>
-                      <p className="text-xs font-bold mb-2" style={{ color: 'var(--ht-accent)' }}>פעולה הבאה</p>
-                      <p className="text-sm mb-3">{statusGuidance[detail.delivery.status]}</p>
-                      <div className="space-y-1.5">
-                        {(nextStatusMap[detail.delivery.status === 'On The Way' ? 'OnTheWay' : detail.delivery.status] || []).map(t => (
-                          <button key={t.next} onClick={() => handleStatusTransition(detail.delivery.deliveryId, t.next)} disabled={loading}
-                            className="btn-primary w-full py-2 text-sm disabled:opacity-50">{t.label}</button>
-                        ))}
-                        {isOnTheWay && (
-                          <button onClick={() => { setDetailTab('signature'); }} className="btn-primary w-full py-2 text-sm">
-                            המשך לחתימה וסגירה ←
-                          </button>
-                        )}
-                      </div>
+                    <div className="rounded-xl p-4" style={{
+                      background: isFuture ? 'var(--ht-surface-container)' : 'var(--ht-info-bg)',
+                      border: '1px solid var(--ht-border)',
+                    }}>
+                      {isFuture ? (
+                        <>
+                          <p className="text-xs font-bold mb-2 flex items-center gap-1.5" style={{ color: 'var(--ht-on-surface)' }}>
+                            <IconClock size={14} /> נעול עד יום האספקה
+                          </p>
+                          <p className="text-sm mb-2">המשלוח מתוזמן ליום {requiredDateDisplay}.</p>
+                          <p className="text-xs opacity-60">ניתן יהיה לנהל אותו רק ביום עצמו — שיוך נהג, טעינה, יציאה לדרך וסגירה.</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs font-bold mb-2" style={{ color: 'var(--ht-accent)' }}>פעולה הבאה</p>
+                          <p className="text-sm mb-3">{statusGuidance[detail.delivery.status]}</p>
+                          <div className="space-y-1.5">
+                            {(nextStatusMap[detail.delivery.status === 'On The Way' ? 'OnTheWay' : detail.delivery.status] || []).map(t => (
+                              <button key={t.next} onClick={() => handleStatusTransition(detail.delivery.deliveryId, t.next)} disabled={loading}
+                                className="btn-primary w-full py-2 text-sm disabled:opacity-50">{t.label}</button>
+                            ))}
+                            {isOnTheWay && (
+                              <button onClick={() => { setDetailTab('signature'); }} className="btn-primary w-full py-2 text-sm">
+                                המשך לחתימה וסגירה ←
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
                     {/* Quick summary */}
                     <div className="rounded-xl p-4" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
