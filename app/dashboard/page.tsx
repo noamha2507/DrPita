@@ -11,6 +11,28 @@ import DriverDashboard from '../components/DriverDashboard';
 const roleLabels: Record<string, string> = { Manager: 'מנהל', ProductionWorker: 'עובד ייצור', WarehouseWorker: 'מחסנאי', Driver: 'נהג' };
 const statusLabels: Record<string, string> = { Draft: 'טיוטה', Approved: 'מאושרת', Rejected: 'נדחתה', Delivered: 'נמסרה', 'In Progress': 'בייצור', InProgress: 'בייצור', 'Waiting For Materials': 'ממתין לחומרים', Completed: 'הושלם', Cancelled: 'בוטל', Planned: 'מתוכנן', 'On The Way': 'בדרך', Failed: 'נכשל' };
 
+// Relative time in Hebrew: "לפני 3 שעות", "אתמול", "12/6"
+function relativeTime(iso: string): string {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const diffMin = Math.floor((now - then) / 60000);
+  if (diffMin < 1) return 'הרגע';
+  if (diffMin < 60) return `לפני ${diffMin} דק׳`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `לפני ${diffHr} שע׳`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay === 1) return 'אתמול';
+  if (diffDay < 7) return `לפני ${diffDay} ימים`;
+  return new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+}
+
+// Short date for delivery dates: "13/6"
+function shortDate(iso: string | null): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+}
+
 function Kpi({ value, label, color, icon }: { value: number; label: string; color: string; icon: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2.5 py-2">
@@ -164,46 +186,103 @@ export default function DashboardPage() {
 
             {/* ============ RECENT ACTIVITY ============ */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+              {/* ----- הזמנות אחרונות ----- */}
               <div className="p-4 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-bold text-sm flex items-center gap-1.5" style={{ color: 'var(--ht-primary)' }}><IconOrders size={14} /> הזמנות אחרונות</h3>
                   <button onClick={() => router.push('/orders')} className="text-xs" style={{ color: 'var(--ht-accent)' }}>הכול ←</button>
                 </div>
-                {(d.recentOrders || []).map((o: any) => (
-                  <div key={o.orderId} className="flex items-center justify-between py-1.5" style={{ borderBottom: '1px solid var(--ht-border)' }}>
-                    <span className="text-xs font-medium truncate flex-1 min-w-0">{o.customerName}</span>
-                    <div className="flex items-center gap-2 shrink-0 me-2">
-                      <span className="text-xs opacity-60"><bdi dir="ltr">{o.totalAmount?.toLocaleString()}</bdi> ₪</span>
-                      <span style={{ ...getStatusBadgeStyle(o.status), fontSize: '10px', padding: '1px 6px' }}>{statusLabels[o.status] || o.status}</span>
-                    </div>
-                  </div>
-                ))}
+                <div className="space-y-0.5">
+                  {(d.recentOrders || []).map((o: any) => (
+                    <button key={o.orderId} onClick={() => router.push('/orders')}
+                      className="w-full text-start py-2.5 px-2 rounded-lg transition-all"
+                      style={{ borderBottom: '1px solid var(--ht-border)' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--ht-surface-container)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                      {/* line 1: customer + time + status */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium truncate flex-1 min-w-0">{o.customerName}</span>
+                        <span style={{ ...getStatusBadgeStyle(o.status), fontSize: '10px', padding: '1px 7px' }}>{statusLabels[o.status] || o.status}</span>
+                      </div>
+                      {/* line 2: qty + amount + (reason | delivery date) */}
+                      <div className="flex items-center justify-between gap-2 mt-1">
+                        <span className="text-xs opacity-50">{relativeTime(o.createdAt)}</span>
+                        <div className="flex items-center gap-2 text-xs">
+                          {o.quantity > 0 && <span className="opacity-60"><bdi dir="ltr">{o.quantity.toLocaleString()}</bdi> פיתות</span>}
+                          <span className="font-bold"><bdi dir="ltr">{o.totalAmount?.toLocaleString()}</bdi> ₪</span>
+                        </div>
+                      </div>
+                      {/* line 3 (conditional): rejection reason OR delivery date */}
+                      {o.status === 'Rejected' && o.rejectionReason && (
+                        <div className="flex items-center gap-1 mt-1.5">
+                          <IconX size={11} />
+                          <span className="text-xs font-medium" style={{ color: 'var(--ht-danger)' }}>{o.rejectionReason}</span>
+                        </div>
+                      )}
+                      {o.status === 'Approved' && o.requiredDeliveryDate && (
+                        <p className="text-xs opacity-50 mt-1.5">אספקה ל-<bdi dir="ltr">{shortDate(o.requiredDeliveryDate)}</bdi></p>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
 
+              {/* ----- תוכניות ייצור ----- */}
               <div className="p-4 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-bold text-sm flex items-center gap-1.5" style={{ color: 'var(--ht-primary)' }}><IconProduction size={14} /> תוכניות ייצור</h3>
                   <button onClick={() => router.push('/production')} className="text-xs" style={{ color: 'var(--ht-accent)' }}>הכול ←</button>
                 </div>
-                {(d.recentPlans || []).map((p: any) => (
-                  <div key={p.planId} className="flex items-center justify-between py-1.5" style={{ borderBottom: '1px solid var(--ht-border)' }}>
-                    <span className="text-xs font-medium truncate flex-1 min-w-0">{p.label}</span>
-                    <span className="shrink-0 me-1" style={{ ...getStatusBadgeStyle(p.status), fontSize: '10px', padding: '1px 6px' }}>{statusLabels[p.status] || p.status}</span>
-                  </div>
-                ))}
+                <div className="space-y-0.5">
+                  {(d.recentPlans || []).map((p: any) => (
+                    <button key={p.planId} onClick={() => router.push('/production')}
+                      className="w-full text-start py-2.5 px-2 rounded-lg transition-all"
+                      style={{ borderBottom: '1px solid var(--ht-border)' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--ht-surface-container)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium truncate flex-1 min-w-0">{p.label}</span>
+                        <span style={{ ...getStatusBadgeStyle(p.status), fontSize: '10px', padding: '1px 7px' }}>{statusLabels[p.status] || p.status}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <IconProduction size={11} className="opacity-40" />
+                        <span className="text-xs opacity-60">
+                          {p.plannedQuantity > 0 ? <><bdi dir="ltr">{p.plannedQuantity.toLocaleString()}</bdi> פיתות לייצור</> : 'אין פריטים'}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
+              {/* ----- משלוחים ----- */}
               <div className="p-4 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-bold text-sm flex items-center gap-1.5" style={{ color: 'var(--ht-primary)' }}><IconDelivery size={14} /> משלוחים</h3>
                   <button onClick={() => router.push('/delivery')} className="text-xs" style={{ color: 'var(--ht-accent)' }}>הכול ←</button>
                 </div>
-                {(d.recentDeliveries || []).map((dl: any) => (
-                  <div key={dl.deliveryId} className="flex items-center justify-between py-1.5" style={{ borderBottom: '1px solid var(--ht-border)' }}>
-                    <span className="text-xs font-medium truncate flex-1 min-w-0">{dl.label}</span>
-                    <span className="shrink-0 me-1" style={{ ...getStatusBadgeStyle(dl.status), fontSize: '10px', padding: '1px 6px' }}>{statusLabels[dl.status] || dl.status}</span>
-                  </div>
-                ))}
+                <div className="space-y-0.5">
+                  {(d.recentDeliveries || []).map((dl: any) => (
+                    <button key={dl.deliveryId} onClick={() => router.push('/delivery')}
+                      className="w-full text-start py-2.5 px-2 rounded-lg transition-all"
+                      style={{ borderBottom: '1px solid var(--ht-border)' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--ht-surface-container)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium truncate flex-1 min-w-0">{dl.routeLabel || 'קו חלוקה'}</span>
+                        <span style={{ ...getStatusBadgeStyle(dl.status), fontSize: '10px', padding: '1px 7px' }}>{statusLabels[dl.status] || dl.status}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 mt-1">
+                        <span className="text-xs opacity-50 truncate">{dl.driverName}</span>
+                        <div className="flex items-center gap-2 text-xs shrink-0">
+                          {dl.stopCount > 0 && <span className="opacity-60">{dl.stopCount} תחנות</span>}
+                          {dl.totalValue > 0 && <span className="font-bold"><bdi dir="ltr">{dl.totalValue.toLocaleString()}</bdi> ₪</span>}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </>

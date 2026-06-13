@@ -17,7 +17,7 @@ export async function GET() {
       supabase.from('deliveries').select('delivery_id, status, driver_id'),
       supabase.from('delivery_notes').select('note_id'),
       supabase.from('raw_materials').select('material_id, material_name, current_quantity, minimum_threshold, unit'),
-      supabase.from('orders').select('order_id, status, total_amount, created_at, customers(business_name)').order('created_at', { ascending: false }).limit(5),
+      supabase.from('orders').select('order_id, status, total_amount, created_at, required_delivery_date, customers(business_name, credit_limit, current_balance)').order('created_at', { ascending: false }).limit(5),
       supabase.from('production_plans').select('plan_id, plan_date, status, created_at').order('created_at', { ascending: false }).limit(5),
       supabase.from('deliveries').select('delivery_id, status, created_at, employees(full_name), vehicles(license_plate)').order('created_at', { ascending: false }).limit(5),
     ]);
@@ -53,32 +53,87 @@ export async function GET() {
     const lowStock = materials.filter((m: any) => m.current_quantity <= m.minimum_threshold);
     const warningStock = materials.filter((m: any) => m.current_quantity > m.minimum_threshold && m.current_quantity <= m.minimum_threshold * 1.5);
 
-    // Recent orders with customer join
-    const recentOrders = (recentOrdersRes.data || []).map((o: any) => ({
-      orderId: o.order_id, status: o.status, totalAmount: o.total_amount,
-      createdAt: o.created_at, customerName: o.customers?.business_name || '',
-    }));
+    // Recent orders — enrich with quantity, required date, and derived
+    // rejection reason. Rejection reason is not persisted, so we reproduce
+    // the original validateOrder logic from live credit data.
+    const recentOrderIds = (recentOrdersRes.data || []).map((o: any) => o.order_id);
+    const { data: recentItemsData } = await supabase
+      .from('order_items')
+      .select('order_id, quantity')
+      .in('order_id', recentOrderIds.length > 0 ? recentOrderIds : [-1]);
+    const qtyByOrder: Record<number, number> = {};
+    for (const it of recentItemsData || []) {
+      qtyByOrder[it.order_id] = (qtyByOrder[it.order_id] || 0) + (it.quantity || 0);
+    }
 
-    // Recent plans with date-based labels (daily production plan)
+    const recentOrders = (recentOrdersRes.data || []).map((o: any) => {
+      let rejectionReason: string | null = null;
+      if (o.status === 'Rejected') {
+        const limit = o.customers?.credit_limit ?? 0;
+        const balance = o.customers?.current_balance ?? 0;
+        // Same rule as OrderController.validateOrder
+        rejectionReason = (balance + (o.total_amount || 0) > limit)
+          ? 'חריגת מסגרת אשראי'
+          : 'מלאי לא זמין';
+      }
+      return {
+        orderId: o.order_id, status: o.status, totalAmount: o.total_amount,
+        createdAt: o.created_at,
+        customerName: o.customers?.business_name || '',
+        quantity: qtyByOrder[o.order_id] || 0,
+        requiredDeliveryDate: o.required_delivery_date,
+        rejectionReason,
+      };
+    });
+
+    // Recent plans with date-based labels + planned quantity per plan
+    const recentPlanIds = (recentPlansRes.data || []).map((p: any) => p.plan_id);
+    const { data: recentPlanItemsData } = await supabase
+      .from('production_plan_items')
+      .select('plan_id, planned_quantity')
+      .in('plan_id', recentPlanIds.length > 0 ? recentPlanIds : [-1]);
+    const qtyByPlan: Record<number, number> = {};
+    for (const it of recentPlanItemsData || []) {
+      qtyByPlan[it.plan_id] = (qtyByPlan[it.plan_id] || 0) + (it.planned_quantity || 0);
+    }
+
     const dayNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
     const recentPlansList = (recentPlansRes.data || []).map((p: any) => {
       const date = new Date(p.plan_date);
       const dayName = dayNames[date.getDay()];
       const dateStr = date.toLocaleDateString('he-IL', { day: 'numeric', month: 'long' });
       const label = `יום ${dayName}, ${dateStr}`;
-      return { planId: p.plan_id, planDate: p.plan_date, status: p.status, createdAt: p.created_at, label };
+      return {
+        planId: p.plan_id, planDate: p.plan_date, status: p.status, createdAt: p.created_at, label,
+        plannedQuantity: qtyByPlan[p.plan_id] || 0,
+      };
     });
 
-    // Recent deliveries with business route labels
-    const routeLabels: Record<number, string> = {
-      3: 'קו רמלה ולוד', 1: 'קו רמלה ולוד', 2: 'קו יפו ופתח תקווה', 4: 'קו לוד ורחובות',
-    };
+    // Recent deliveries — route label derived from first customer address,
+    // plus stop count and total value per delivery.
+    const { getRouteKeyFromAddress, getRouteLabel } = await import('@/lib/services/RoutePlanner');
+    const recentDeliveryIds = (recentDeliveriesRes.data || []).map((d: any) => d.delivery_id);
+    const { data: recentDelOrders } = await supabase
+      .from('orders')
+      .select('delivery_id, total_amount, customers(address)')
+      .in('delivery_id', recentDeliveryIds.length > 0 ? recentDeliveryIds : [-1]);
+    const delAgg: Record<number, { stops: number; value: number; firstAddress: string }> = {};
+    for (const o of recentDelOrders || []) {
+      if (!delAgg[o.delivery_id]) delAgg[o.delivery_id] = { stops: 0, value: 0, firstAddress: (o as any).customers?.address || '' };
+      delAgg[o.delivery_id].stops++;
+      delAgg[o.delivery_id].value += o.total_amount || 0;
+    }
+
     const recentDeliveriesList = (recentDeliveriesRes.data || []).map((d: any) => {
       const driverName = d.employees?.full_name || '';
-      const route = routeLabels[d.delivery_id] || 'קו חלוקה';
+      const agg = delAgg[d.delivery_id] || { stops: 0, value: 0, firstAddress: '' };
+      const route = getRouteLabel(getRouteKeyFromAddress(agg.firstAddress));
       return {
         deliveryId: d.delivery_id, status: d.status, createdAt: d.created_at,
         driverName, vehiclePlate: d.vehicles?.license_plate || '',
+        routeLabel: route,
+        stopCount: agg.stops,
+        totalValue: agg.value,
         label: `${route} — ${driverName}`,
       };
     });
