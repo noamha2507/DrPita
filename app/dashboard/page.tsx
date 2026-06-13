@@ -11,10 +11,18 @@ import DriverDashboard from '../components/DriverDashboard';
 const roleLabels: Record<string, string> = { Manager: 'מנהל', ProductionWorker: 'עובד ייצור', WarehouseWorker: 'מחסנאי', Driver: 'נהג' };
 const statusLabels: Record<string, string> = { Draft: 'טיוטה', Approved: 'מאושרת', Rejected: 'נדחתה', Delivered: 'נמסרה', 'In Progress': 'בייצור', InProgress: 'בייצור', 'Waiting For Materials': 'ממתין לחומרים', Completed: 'הושלם', Cancelled: 'בוטל', Planned: 'מתוכנן', 'On The Way': 'בדרך', Failed: 'נכשל' };
 
+// Supabase "timestamp without time zone" values arrive without a 'Z' but
+// are UTC — append 'Z' so they aren't misread as local time (UTC+3 in IL).
+function parseUTC(iso: string): number {
+  if (!iso) return 0;
+  const hasTz = /[Zz]|[+-]\d{2}:?\d{2}$/.test(iso);
+  return new Date(hasTz ? iso : iso + 'Z').getTime();
+}
+
 // Relative time in Hebrew: "לפני 3 שעות", "אתמול", "12/6"
 function relativeTime(iso: string): string {
   if (!iso) return '';
-  const then = new Date(iso).getTime();
+  const then = parseUTC(iso);
   const now = Date.now();
   const diffMin = Math.floor((now - then) / 60000);
   if (diffMin < 1) return 'הרגע';
@@ -24,7 +32,7 @@ function relativeTime(iso: string): string {
   const diffDay = Math.floor(diffHr / 24);
   if (diffDay === 1) return 'אתמול';
   if (diffDay < 7) return `לפני ${diffDay} ימים`;
-  return new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+  return new Date(parseUTC(iso)).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
 }
 
 // Short date for delivery dates: "13/6"

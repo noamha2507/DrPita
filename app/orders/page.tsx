@@ -15,9 +15,18 @@ const orderStatusLabels: Record<string, string> = { Draft: 'טיוטה', Approve
 
 const getProductIcon = () => <IconPitaWhite size={28} />;
 
+// Supabase returns "timestamp without time zone" values (no 'Z' suffix)
+// that are actually UTC. Append 'Z' so JS parses them as UTC, not local —
+// otherwise a just-created order looks "3 hours ago" in Israel (UTC+3).
+function parseUTC(iso: string): number {
+  if (!iso) return 0;
+  const hasTz = /[Zz]|[+-]\d{2}:?\d{2}$/.test(iso);
+  return new Date(hasTz ? iso : iso + 'Z').getTime();
+}
+
 function relativeTime(iso: string): string {
   if (!iso) return '';
-  const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  const diffMin = Math.floor((Date.now() - parseUTC(iso)) / 60000);
   if (diffMin < 1) return 'הרגע';
   if (diffMin < 60) return `לפני ${diffMin} דק׳`;
   const h = Math.floor(diffMin / 60);
@@ -25,7 +34,7 @@ function relativeTime(iso: string): string {
   const dys = Math.floor(h / 24);
   if (dys === 1) return 'אתמול';
   if (dys < 7) return `לפני ${dys} ימים`;
-  return new Date(iso).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
+  return new Date(parseUTC(iso)).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' });
 }
 
 function getRejectionDetails(reason: string): { icon: React.ReactNode; title: string; explanation: string } {
