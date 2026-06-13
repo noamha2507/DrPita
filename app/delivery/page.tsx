@@ -76,16 +76,18 @@ export default function DeliveryPage() {
     const empId = user.role === 'Manager' ? undefined : user.employeeId;
     setCurrentEmployeeId(empId);
     const today = new Date().toISOString().split('T')[0];
-    // Run one-time global consolidation to clean up any stale legacy data
-    // (deliveries that pre-date the consolidation logic) before showing the list
+    // Load the list FIRST so the spinner clears immediately and the
+    // empty-state shows right away. Consolidation/auto-assign are heavy
+    // background jobs — running them before loadList made the sidebar
+    // spin "forever" on days with no deliveries.
     (async () => {
-      if (user.role === 'Manager') {
-        try {
-          await fetch('/api/delivery/consolidate-all', { method: 'POST' });
-        } catch { /* non-fatal */ }
-      }
       await loadList(empId, today);
-      autoAssignPending(today);
+      if (user.role === 'Manager') {
+        try { await fetch('/api/delivery/consolidate-all', { method: 'POST' }); } catch { /* non-fatal */ }
+      }
+      await autoAssignPending(today);
+      // Refresh once after the background cleanup (no spinner — list already shown)
+      loadList(empId, today);
     })();
   }, [router]);
 
@@ -247,11 +249,15 @@ export default function DeliveryPage() {
           {pageLoading ? (
             <div className="text-center py-8"><div className="inline-block w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.2)', borderTopColor: '#fff' }}></div></div>
           ) : deliveries.length === 0 ? (
-            <div className="text-center py-6">
-              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>אין משלוחים לתאריך זה</p>
-              <button onClick={() => { setSelectedDate(''); loadList(currentEmployeeId); }}
-                className="text-xs mt-2 px-3 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
-                הצג הכול
+            <div className="text-center py-8 px-3">
+              <div className="flex justify-center mb-2" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                <IconDelivery size={32} />
+              </div>
+              <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>אין משלוחים ליום זה</p>
+              <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>בחרו תאריך אחר או הציגו את כל המשלוחים</p>
+              <button onClick={() => { setSelectedDate(''); setPageLoading(true); loadList(currentEmployeeId); }}
+                className="text-xs mt-3 px-3 py-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}>
+                הצג את כל המשלוחים
               </button>
             </div>
           ) : deliveries.map(d => {
