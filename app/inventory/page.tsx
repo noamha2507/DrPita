@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AppHeader from '../components/AppHeader';
-import { card, input, inputFocus, inputBlur } from '../components/styles';
+import { input, inputFocus, inputBlur } from '../components/styles';
+import { IconInventory, IconAlertTriangle, IconCheck, IconCircleFull, IconPhone, IconUser } from '../components/Icons';
 
 interface Material {
   materialId: number;
@@ -19,6 +20,7 @@ interface Material {
 
 export default function InventoryPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [updateModal, setUpdateModal] = useState<Material | null>(null);
@@ -30,13 +32,20 @@ export default function InventoryPage() {
   useEffect(() => {
     const stored = localStorage.getItem('user');
     if (!stored) { router.push('/login'); return; }
-    loadMaterials();
+    loadMaterials(true);
   }, [router]);
 
-  const loadMaterials = async () => {
+  const loadMaterials = async (autoSelect = false) => {
     try {
       const data = await (await fetch('/api/inventory')).json();
-      if (Array.isArray(data)) setMaterials(data);
+      if (Array.isArray(data)) {
+        setMaterials(data);
+        // Auto-select first critical/low, else first material
+        if (autoSelect && data.length > 0) {
+          const priority = data.find((m: Material) => m.isCritical) || data.find((m: Material) => m.isLow) || data[0];
+          setSelectedId(priority.materialId);
+        }
+      }
     } catch { setError('שגיאה בטעינת נתוני מלאי'); }
     finally { setLoading(false); }
   };
@@ -46,159 +55,225 @@ export default function InventoryPage() {
     setUpdating(true);
     try {
       const data = await (await fetch('/api/inventory', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ materialId: updateModal.materialId, addQuantity: addQty }),
       })).json();
       if (data.success) {
-        setResult({ success: true, message: `${updateModal.materialName}: נוספו ${addQty} ${updateModal.unit}` });
+        setResult({ success: true, message: `${updateModal.materialName}: נוספו ${addQty.toLocaleString()} ${updateModal.unit}` });
         setUpdateModal(null); setAddQty(0);
         await loadMaterials();
-      } else {
-        setResult({ success: false, message: data.error || 'שגיאה בעדכון' });
-      }
+      } else setResult({ success: false, message: data.error || 'שגיאה בעדכון' });
     } catch { setResult({ success: false, message: 'שגיאת חיבור' }); }
     finally { setUpdating(false); }
   };
 
-  const getStockColor = (m: Material) => {
-    if (m.isCritical) return 'var(--ht-danger)';
-    if (m.isLow) return 'var(--ht-warning)';
-    return 'var(--ht-success)';
-  };
+  const tone = (m: Material) => m.isCritical ? 'danger' : m.isLow ? 'warning' : 'success';
+  const stockColor = (m: Material) => `var(--ht-${tone(m)})`;
+  const stockBg = (m: Material) => `var(--ht-${tone(m)}-bg)`;
+  const stockLabel = (m: Material) => m.isCritical ? 'קריטי' : m.isLow ? 'נמוך' : 'תקין';
 
-  const getStockLabel = (m: Material) => {
-    if (m.isCritical) return 'קריטי';
-    if (m.isLow) return 'נמוך';
-    return 'תקין';
-  };
-
-  const getStockBg = (m: Material) => {
-    if (m.isCritical) return 'var(--ht-danger-bg)';
-    if (m.isLow) return 'var(--ht-warning-bg)';
-    return 'var(--ht-success-bg)';
-  };
-
+  // bar: current relative to a "healthy" level (3× threshold)
   const stockPercent = (m: Material) => {
     if (m.minimumThreshold === 0) return 100;
-    // Show as percentage of a "good" level (3x threshold)
-    const good = m.minimumThreshold * 3;
-    return Math.min(100, Math.round((m.currentQuantity / good) * 100));
+    return Math.min(100, Math.round((m.currentQuantity / (m.minimumThreshold * 3)) * 100));
   };
+  const thresholdPercent = (m: Material) => {
+    if (m.minimumThreshold === 0) return 0;
+    return Math.min(100, Math.round((m.minimumThreshold / (m.minimumThreshold * 3)) * 100)); // = 33%
+  };
+
+  const criticalCount = materials.filter(m => m.isCritical).length;
+  const lowCount = materials.filter(m => m.isLow && !m.isCritical).length;
+  const okCount = materials.filter(m => !m.isLow && !m.isCritical).length;
+  const selected = materials.find(m => m.materialId === selectedId) || null;
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--ht-surface-container)' }}>
       <AppHeader title="ד״ר פיתה — מלאי חומרי גלם" />
-      <main id="main-content" className="max-w-5xl mx-auto p-6 space-y-5">
 
-        {/* Info */}
-        <div className="p-4 rounded-xl text-sm" style={{ background: 'var(--ht-info-bg)', border: '1px solid var(--ht-border)' }}>
-          <p style={{ color: 'var(--ht-primary)' }}>
-            מסך זה מציג את מצב המלאי הנוכחי של חומרי הגלם במאפייה. ניתן לעדכן כמויות לאחר קבלת סחורה מספקים.
-          </p>
+      {/* Toast */}
+      {result && (
+        <div className="fixed top-20 z-50 px-6 py-3 rounded-xl shadow-lg text-sm font-medium"
+          style={{ background: result.success ? 'var(--ht-success)' : 'var(--ht-danger)', color: '#fff', left: '50%', transform: 'translateX(-50%)' }}>
+          {result.message}
         </div>
+      )}
 
-        {/* Result */}
-        {result && (
-          <div className="rounded-xl p-4" style={{ background: result.success ? 'var(--ht-success-bg)' : 'var(--ht-danger-bg)', color: result.success ? 'var(--ht-success)' : 'var(--ht-danger)' }}>
-            <p className="font-bold text-sm">{result.success ? '' : ''}{result.message}</p>
-          </div>
-        )}
+      <div className="flex h-[calc(100vh-56px)]">
+        {/* ========== SIDEBAR ========== */}
+        <div className="w-72 shrink-0 overflow-y-auto p-3 space-y-2" style={{ background: 'var(--ht-primary)' }}>
+          <p className="text-xs font-bold px-2 pt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>מצב המלאי</p>
 
-        {error && (
-          <div className="rounded-xl p-4" style={{ background: 'var(--ht-danger-bg)', color: 'var(--ht-danger)' }}>
-            <p className="font-bold text-sm">{error}</p>
-            <button onClick={() => { setError(''); loadMaterials(); }} className="text-xs underline mt-1">נסה שוב</button>
-          </div>
-        )}
-
-        {/* Materials Grid */}
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block w-8 h-8 border-4 rounded-full animate-spin" style={{ borderColor: 'var(--ht-border)', borderTopColor: 'var(--ht-accent)' }}></div>
-            <p className="text-sm mt-2 opacity-50">טוען נתוני מלאי...</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {materials.map(m => (
-              <div key={m.materialId} className="p-5 rounded-xl" style={{ background: 'var(--ht-surface)', border: `1px solid ${m.isCritical ? 'var(--ht-danger)' : 'var(--ht-border)'}` }}>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-bold" style={{ color: 'var(--ht-primary)' }}>{m.materialName}</h3>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: getStockBg(m), color: getStockColor(m) }}>
-                    {getStockLabel(m)}
-                  </span>
-                </div>
-
-                {/* Stock bar */}
-                <div className="mb-3">
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="opacity-50">מלאי נוכחי</span>
-                    <span className="font-bold" style={{ color: getStockColor(m) }}>
-                      <bdi dir="ltr">{m.currentQuantity.toLocaleString()}</bdi> {m.unit}
-                    </span>
-                  </div>
-                  <div className="h-3 rounded-full" style={{ background: 'var(--ht-border)' }}>
-                    <div className="h-full rounded-full transition-all" style={{ width: `${stockPercent(m)}%`, background: getStockColor(m) }}></div>
-                  </div>
-                  <div className="flex justify-between text-[10px] opacity-40 mt-0.5">
-                    <span>סף מינימום: <bdi dir="ltr">{m.minimumThreshold}</bdi> {m.unit}</span>
-                  </div>
-                </div>
-
-                {/* Supplier info */}
-                {m.supplierName && (
-                  <p className="text-xs opacity-50 mb-3">
-                    ספק: {m.supplierName} {m.supplierPhone && <> | <bdi dir="ltr">{m.supplierPhone}</bdi></>}
-                  </p>
-                )}
-
-                {/* Update button */}
-                <button onClick={() => { setUpdateModal(m); setAddQty(0); }}
-                  className="w-full py-2 rounded-lg text-sm font-medium transition-all"
-                  style={{ background: 'var(--ht-surface-container)', border: '1px solid var(--ht-border)', color: 'var(--ht-primary)' }}>
-                  קבלת סחורה
-                </button>
+          {/* Summary chips */}
+          <div className="grid grid-cols-3 gap-1.5 px-1 pb-1">
+            {[
+              { n: criticalCount, label: 'קריטי', color: 'var(--ht-danger)' },
+              { n: lowCount, label: 'נמוך', color: 'var(--ht-warning)' },
+              { n: okCount, label: 'תקין', color: 'var(--ht-success)' },
+            ].map((c, i) => (
+              <div key={i} className="rounded-lg py-2 text-center" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                <p className="text-lg font-bold" style={{ color: c.color }}>{c.n}</p>
+                <p className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>{c.label}</p>
               </div>
             ))}
           </div>
-        )}
 
-        {/* Update Modal */}
-        {updateModal && (
-          <div role="dialog" aria-modal="true" aria-labelledby="stock-modal-title" className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setUpdateModal(null)}>
-            <div className="p-6 rounded-xl w-full max-w-md" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }} onClick={e => e.stopPropagation()}>
-              <h3 id="stock-modal-title" className="text-lg font-bold mb-1" style={{ color: 'var(--ht-primary)' }}>קבלת סחורה — {updateModal.materialName}</h3>
-              <p className="text-sm opacity-50 mb-4">
-                מלאי נוכחי: <bdi dir="ltr">{updateModal.currentQuantity}</bdi> {updateModal.unit}
-              </p>
+          <p className="text-xs font-bold px-2 pt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>חומרי גלם ({materials.length})</p>
 
-              <label className="block text-sm font-medium mb-1">כמות שהתקבלה ({updateModal.unit})</label>
-              <input type="number" min={1} value={addQty || ''} onChange={(e) => setAddQty(Number(e.target.value))}
-                className="w-full px-4 py-2.5 outline-none transition-all mb-2" style={input} dir="ltr"
-                onFocus={(e) => Object.assign(e.target.style, inputFocus)} onBlur={(e) => Object.assign(e.target.style, inputBlur)}
-                placeholder="0" />
-
-              {addQty > 0 && (
-                <p className="text-sm mb-4" style={{ color: 'var(--ht-success)' }}>
-                  מלאי לאחר עדכון: <bdi dir="ltr">{(updateModal.currentQuantity + addQty).toLocaleString()}</bdi> {updateModal.unit}
+          {loading ? (
+            <div className="text-center py-6"><div className="inline-block w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.2)', borderTopColor: '#fff' }}></div></div>
+          ) : materials.map(m => {
+            const isSel = selectedId === m.materialId;
+            return (
+              <button key={m.materialId} onClick={() => setSelectedId(m.materialId)}
+                className="w-full text-start p-3 rounded-xl transition-all"
+                style={{ background: isSel ? 'rgba(36,86,232,0.3)' : 'rgba(255,255,255,0.05)', border: isSel ? '1px solid var(--ht-accent)' : '1px solid transparent' }}>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-2 h-2 rounded-full shrink-0" style={{ background: stockColor(m) }}></span>
+                    <span className="text-sm font-bold text-white truncate">{m.materialName}</span>
+                  </div>
+                  <span style={{ background: stockBg(m), color: stockColor(m), fontSize: '10px', padding: '1px 6px', borderRadius: '999px' }}>{stockLabel(m)}</span>
+                </div>
+                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <bdi dir="ltr">{m.currentQuantity.toLocaleString()}</bdi> {m.unit}
                 </p>
-              )}
+              </button>
+            );
+          })}
+        </div>
 
-              <div className="flex gap-3">
-                <button onClick={() => setUpdateModal(null)}
-                  className="flex-1 py-2 rounded-lg text-sm" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
-                  ביטול
-                </button>
-                <button onClick={handleUpdate} disabled={updating || addQty <= 0}
-                  className="flex-1 py-2 rounded-lg text-sm text-white font-medium disabled:opacity-50"
-                  style={{ background: 'var(--ht-accent)' }}>
-                  {updating ? 'מעדכן...' : 'עדכון מלאי'}
-                </button>
+        {/* ========== MAIN ========== */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {error && (
+            <div className="rounded-xl p-4" style={{ background: 'var(--ht-danger-bg)', color: 'var(--ht-danger)' }}>
+              <p className="font-bold text-sm">{error}</p>
+              <button onClick={() => { setError(''); loadMaterials(true); }} className="text-xs underline mt-1">נסה שוב</button>
+            </div>
+          )}
+
+          {!selected && !loading && (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center opacity-30">
+                <IconInventory size={48} className="mx-auto" />
+                <p className="mt-3 text-sm">יש לבחור חומר גלם מהרשימה</p>
               </div>
             </div>
+          )}
+
+          {selected && (() => {
+            const m = selected;
+            const diff = m.currentQuantity - m.minimumThreshold;
+            return (
+              <>
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <IconInventory size={22} />
+                    <div>
+                      <h1 className="text-xl font-bold" style={{ color: 'var(--ht-primary)' }}>{m.materialName}</h1>
+                      <p className="text-xs opacity-50">חומר גלם · מק״ט #{m.materialId}</p>
+                    </div>
+                  </div>
+                  <span style={{ background: stockBg(m), color: stockColor(m), fontSize: '13px', padding: '4px 12px', borderRadius: '999px', fontWeight: 700 }}>
+                    {stockLabel(m)}
+                  </span>
+                </div>
+
+                {/* Critical alert banner */}
+                {m.isCritical && (
+                  <div className="p-4 rounded-xl flex items-center gap-3" style={{ background: 'var(--ht-danger-bg)', border: '1px solid var(--ht-danger)' }}>
+                    <IconAlertTriangle size={20} className="shrink-0" />
+                    <div>
+                      <p className="font-bold text-sm" style={{ color: 'var(--ht-danger)' }}>מלאי מתחת לסף המינימום</p>
+                      <p className="text-xs opacity-70 mt-0.5">יש להזמין סחורה מהספק בהקדם כדי לא לעצור את הייצור</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* KPI cards */}
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { value: <><bdi dir="ltr">{m.currentQuantity.toLocaleString()}</bdi> {m.unit}</>, label: 'מלאי נוכחי', color: stockColor(m) },
+                    { value: <><bdi dir="ltr">{m.minimumThreshold.toLocaleString()}</bdi> {m.unit}</>, label: 'סף מינימום', color: 'var(--ht-primary)' },
+                    { value: <>{diff >= 0 ? '+' : ''}<bdi dir="ltr">{diff.toLocaleString()}</bdi> {m.unit}</>, label: diff >= 0 ? 'עודף מעל הסף' : 'חוסר מתחת לסף', color: diff >= 0 ? 'var(--ht-success)' : 'var(--ht-danger)' },
+                  ].map((k, i) => (
+                    <div key={i} className="rounded-xl p-4 text-center" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                      <p className="text-lg font-bold" style={{ color: k.color }}>{k.value}</p>
+                      <p className="text-xs opacity-50 mt-0.5">{k.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Stock gauge with threshold marker */}
+                <div className="p-5 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-bold" style={{ color: 'var(--ht-primary)' }}>מד מלאי</h3>
+                    <span className="text-xs opacity-50">ביחס לרמה מומלצת (×3 מהסף)</span>
+                  </div>
+                  <div className="relative h-5 rounded-full" style={{ background: 'var(--ht-border)' }}>
+                    <div className="h-full rounded-full transition-all" style={{ width: `${stockPercent(m)}%`, background: stockColor(m) }}></div>
+                    {/* threshold marker */}
+                    <div className="absolute top-0 bottom-0" style={{ insetInlineStart: `${thresholdPercent(m)}%`, width: '2px', background: 'var(--ht-primary)' }}></div>
+                  </div>
+                  <div className="flex justify-between text-xs mt-2">
+                    <span className="opacity-50">0</span>
+                    <span style={{ color: 'var(--ht-primary)', fontWeight: 600 }}>↑ סף מינימום <bdi dir="ltr">{m.minimumThreshold.toLocaleString()}</bdi></span>
+                    <span className="opacity-50"><bdi dir="ltr">{(m.minimumThreshold * 3).toLocaleString()}</bdi> {m.unit}</span>
+                  </div>
+                </div>
+
+                {/* Supplier + action */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="p-5 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                    <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ color: 'var(--ht-primary)' }}><IconUser size={14} /> ספק</h3>
+                    {m.supplierName ? (
+                      <>
+                        <p className="text-sm font-medium">{m.supplierName}</p>
+                        {m.supplierPhone && <p className="text-xs opacity-60 mt-1 flex items-center gap-1.5"><IconPhone size={12} /> <bdi dir="ltr">{m.supplierPhone}</bdi></p>}
+                      </>
+                    ) : <p className="text-sm opacity-40">לא הוגדר ספק</p>}
+                  </div>
+
+                  <div className="p-5 rounded-xl flex flex-col justify-between" style={{ background: 'var(--ht-info-bg)', border: '1px solid var(--ht-border)' }}>
+                    <div>
+                      <h3 className="text-sm font-bold mb-1" style={{ color: 'var(--ht-accent)' }}>קבלת סחורה</h3>
+                      <p className="text-xs opacity-60 mb-3">עדכון המלאי לאחר קבלת משלוח מהספק</p>
+                    </div>
+                    <button onClick={() => { setUpdateModal(m); setAddQty(0); }}
+                      className="btn-primary w-full py-2.5 text-sm">+ עדכון כמות</button>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      </div>
+
+      {/* Update Modal */}
+      {updateModal && (
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setUpdateModal(null)}>
+          <div className="p-6 rounded-xl w-full max-w-md" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }} onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold mb-1" style={{ color: 'var(--ht-primary)' }}>קבלת סחורה — {updateModal.materialName}</h3>
+            <p className="text-sm opacity-50 mb-4">מלאי נוכחי: <bdi dir="ltr">{updateModal.currentQuantity.toLocaleString()}</bdi> {updateModal.unit}</p>
+            <label className="block text-sm font-medium mb-1">כמות שהתקבלה ({updateModal.unit})</label>
+            <input type="number" min={1} value={addQty || ''} onChange={(e) => setAddQty(Number(e.target.value))}
+              className="w-full px-4 py-2.5 outline-none transition-all mb-2" style={input} dir="ltr"
+              onFocus={(e) => Object.assign(e.target.style, inputFocus)} onBlur={(e) => Object.assign(e.target.style, inputBlur)} placeholder="0" />
+            {addQty > 0 && (
+              <p className="text-sm mb-4" style={{ color: 'var(--ht-success)' }}>
+                מלאי לאחר עדכון: <bdi dir="ltr">{(updateModal.currentQuantity + addQty).toLocaleString()}</bdi> {updateModal.unit}
+              </p>
+            )}
+            <div className="flex gap-3">
+              <button onClick={() => setUpdateModal(null)} className="flex-1 py-2.5 rounded-lg text-sm" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>ביטול</button>
+              <button onClick={handleUpdate} disabled={updating || addQty <= 0} className="btn-primary flex-1 py-2.5 text-sm disabled:opacity-50">
+                {updating ? 'מעדכן...' : 'עדכון מלאי'}
+              </button>
+            </div>
           </div>
-        )}
-      </main>
+        </div>
+      )}
     </div>
   );
 }
