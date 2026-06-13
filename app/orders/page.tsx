@@ -235,15 +235,12 @@ export default function OrdersPage() {
                     className="flex-1 px-4 py-2.5 outline-none transition-all" style={input}
                     onFocus={(e) => Object.assign(e.target.style, inputFocus)} onBlur={(e) => Object.assign(e.target.style, inputBlur)}>
                     <option value={0}>יש לבחור לקוח...</option>
-                    {customers.map(c => <option key={c.customerId} value={c.customerId}>{c.businessName} (אשראי: {c.creditLimit?.toLocaleString()} ₪ | יתרה: {c.currentBalance?.toLocaleString()} ₪)</option>)}
+                    {customers.map(c => <option key={c.customerId} value={c.customerId}>{c.businessName}</option>)}
                   </select>
                   <button onClick={() => setShowNewCustomerModal(true)} className="px-4 py-2.5 font-bold text-sm whitespace-nowrap rounded-lg" style={btnPrimary}>+ לקוח חדש</button>
                 </div>
                 {selectedCust && (
                   <>
-                    <div className="mt-3 p-3 rounded-lg text-sm" style={{ background: 'var(--ht-surface-container)' }}>
-                      <span className="font-medium">{selectedCust.businessName}</span> — מסגרת: <bdi dir="ltr">{selectedCust.creditLimit?.toLocaleString()} ₪</bdi> | נוצל: <bdi dir="ltr">{selectedCust.currentBalance?.toLocaleString()} ₪</bdi> | פנוי: <bdi dir="ltr" className="font-bold" style={{ color: 'var(--ht-success)' }}>{((selectedCust.creditLimit || 0) - (selectedCust.currentBalance || 0)).toLocaleString()} ₪</bdi>
-                    </div>
                     <div className="mt-3">
                       <label className="block text-sm font-medium mb-1" style={{ color: 'var(--ht-on-surface)' }}>תאריך אספקה נדרש</label>
                       <input type="date" value={requiredDeliveryDate} onChange={(e) => setRequiredDeliveryDate(e.target.value)}
@@ -387,7 +384,7 @@ export default function OrdersPage() {
                     <IconX size={18} />
                     <div>
                       <p className="font-bold text-sm" style={{ color: 'var(--ht-danger)' }}>{rejectionReason}</p>
-                      {cust && <p className="text-xs opacity-70 mt-0.5">מסגרת: <bdi dir="ltr">{cust.creditLimit.toLocaleString()} ₪</bdi> · נוצל: <bdi dir="ltr">{cust.currentBalance.toLocaleString()} ₪</bdi></p>}
+                      <p className="text-xs opacity-70 mt-0.5">ההזמנה לא אושרה אוטומטית במהלך הקליטה</p>
                     </div>
                   </div>
                 )}
