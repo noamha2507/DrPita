@@ -62,7 +62,7 @@ export default function AppHeader({ title }: AppHeaderProps) {
             className="flex items-center gap-2 shrink-0 transition-opacity hover:opacity-100 opacity-90">
             <Logo size={38} light={true} />
             <span className="text-base font-bold text-white"
-              style={{ fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
+              style={{ fontFamily: 'var(--font-heebo), Heebo, sans-serif' }}>
               ד״ר פיתה
             </span>
           </button>

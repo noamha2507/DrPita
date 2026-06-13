@@ -95,19 +95,19 @@ export default function ReportsPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-5 rounded-xl" style={{ background: 'var(--ht-success-bg)', border: '1px solid var(--ht-border)' }}>
                 <p className="text-xs opacity-50 mb-1">הכנסות ממשלוחים שהושלמו</p>
-                <p className="text-3xl font-bold" style={{ color: 'var(--ht-success)', fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
+                <p className="text-3xl font-bold" style={{ color: 'var(--ht-success)', fontFamily: 'var(--font-heebo), Heebo, sans-serif' }}>
                   <bdi dir="ltr">{summaryData.orders.totalRevenue?.toLocaleString()}</bdi> ₪
                 </p>
               </div>
               <div className="p-5 rounded-xl" style={{ background: 'var(--ht-info-bg)', border: '1px solid var(--ht-border)' }}>
                 <p className="text-xs opacity-50 mb-1">הזמנות ממתינות למשלוח</p>
-                <p className="text-3xl font-bold" style={{ color: 'var(--ht-accent)', fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
+                <p className="text-3xl font-bold" style={{ color: 'var(--ht-accent)', fontFamily: 'var(--font-heebo), Heebo, sans-serif' }}>
                   <bdi dir="ltr">{summaryData.orders.pendingRevenue?.toLocaleString()}</bdi> ₪
                 </p>
               </div>
               <div className="p-5 rounded-xl" style={{ background: 'var(--ht-danger-bg)', border: '1px solid var(--ht-border)' }}>
                 <p className="text-xs opacity-50 mb-1">הזמנות שנדחו</p>
-                <p className="text-3xl font-bold" style={{ color: 'var(--ht-danger)', fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
+                <p className="text-3xl font-bold" style={{ color: 'var(--ht-danger)', fontFamily: 'var(--font-heebo), Heebo, sans-serif' }}>
                   <bdi dir="ltr">{summaryData.orders.rejectedTotal?.toLocaleString()}</bdi> ₪
                 </p>
               </div>
@@ -283,7 +283,7 @@ export default function ReportsPage() {
                   <div className="text-end">
                     <p className="text-3xl font-bold" style={{
                       color: plan.efficiency >= 80 ? 'var(--ht-success)' : plan.efficiency >= 50 ? 'var(--ht-warning)' : 'var(--ht-danger)',
-                      fontFamily: 'var(--font-display), Heebo, sans-serif'
+                      fontFamily: 'var(--font-heebo), Heebo, sans-serif'
                     }}>
                       <bdi dir="ltr">{plan.efficiency}%</bdi>
                     </p>

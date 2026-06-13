@@ -69,7 +69,7 @@ export default function LoginPage() {
       <div className="relative z-10 flex items-center justify-between px-8 py-4">
         <div className="flex items-center gap-3">
           <Image src="/logo-nobg.png" alt="ד״ר פיתה" width={44} height={44} className="object-contain" priority />
-          <span className="text-lg font-bold text-white" style={{ fontFamily: 'var(--font-display), Heebo, sans-serif' }}>ד״ר פיתה</span>
+          <span className="text-lg font-bold text-white" style={{ fontFamily: 'var(--font-heebo), Heebo, sans-serif' }}>ד״ר פיתה</span>
         </div>
         <div className="hidden md:flex items-center gap-6 text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
           <span>מערכת ניהול המאפייה</span>
@@ -97,7 +97,7 @@ export default function LoginPage() {
 
             {/* Tagline */}
             <h1 className="text-3xl lg:text-5xl font-bold text-white leading-tight text-center lg:text-start"
-              style={{ fontFamily: 'var(--font-display), Heebo, sans-serif', textShadow: '0 2px 20px rgba(0,0,0,0.3)' }}>
+              style={{ fontFamily: 'var(--font-heebo), Heebo, sans-serif', textShadow: '0 2px 20px rgba(0,0,0,0.3)' }}>
               פיתות טריות
               <br />
               <span style={{ color: 'rgba(218,175,90,0.9)' }}>כל יום, בכל מקום</span>

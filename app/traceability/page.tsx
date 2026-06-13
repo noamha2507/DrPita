@@ -167,7 +167,7 @@ function StateDiagramSection() {
       <p className="text-sm opacity-60">תרשימי מצבים עבור הישויות העיקריות במערכת</p>
       {stateFlows.map((flow) => (
         <div key={flow.entity} className="p-5 rounded-xl" style={card}>
-          <h3 className="text-lg font-bold mb-4" style={{ color: 'var(--ht-primary)', fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
+          <h3 className="text-lg font-bold mb-4" style={{ color: 'var(--ht-primary)', fontFamily: 'var(--font-heebo), Heebo, sans-serif' }}>
             {flow.entity}
           </h3>
 
@@ -218,7 +218,7 @@ export default function TraceabilityPage() {
       <main id="main-content" className="max-w-6xl mx-auto p-6 space-y-6">
         {/* Description */}
         <div className="p-5 rounded-xl" style={card}>
-          <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--ht-primary)', fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
+          <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--ht-primary)', fontFamily: 'var(--font-heebo), Heebo, sans-serif' }}>
             מיפוי עקיבות — Sequence Diagram, Class Diagram ו-State Diagram לקוד
           </h2>
           <p className="text-sm opacity-60">

@@ -284,7 +284,7 @@ export default function OrdersPage() {
             </table>
             <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: '2px solid var(--ht-primary)' }}>
               <span className="text-lg font-bold" style={{ color: 'var(--ht-primary)' }}>סה״כ הזמנה:</span>
-              <span className="text-2xl font-bold" style={{ color: 'var(--ht-accent)', fontFamily: 'var(--font-display), Heebo, sans-serif' }}><bdi dir="ltr">{total.toLocaleString()} ₪</bdi></span>
+              <span className="text-2xl font-bold" style={{ color: 'var(--ht-accent)', fontFamily: 'var(--font-heebo), Heebo, sans-serif' }}><bdi dir="ltr">{total.toLocaleString()} ₪</bdi></span>
             </div>
 
             {/* Submit */}

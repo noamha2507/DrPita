@@ -64,21 +64,21 @@ export default function DashboardPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                 <div>
                   <p className="text-sm opacity-70 mb-1">כמה הרווחנו?</p>
-                  <p className="text-3xl font-bold" style={{ fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
+                  <p className="text-3xl font-bold" style={{ fontFamily: 'var(--font-heebo), Heebo, sans-serif' }}>
                     <bdi dir="ltr">{d.orders.totalRevenue?.toLocaleString()}</bdi> <span className="text-base">₪</span>
                   </p>
                   <p className="text-xs opacity-40 mt-1">מתוך {d.orders.deliveredOrders} הזמנות שנמסרו ללקוחות</p>
                 </div>
                 <div>
                   <p className="text-sm opacity-70 mb-1">כמה מחכה לנו?</p>
-                  <p className="text-3xl font-bold" style={{ fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
+                  <p className="text-3xl font-bold" style={{ fontFamily: 'var(--font-heebo), Heebo, sans-serif' }}>
                     <bdi dir="ltr">{d.orders.pendingRevenue?.toLocaleString()}</bdi> <span className="text-base">₪</span>
                   </p>
                   <p className="text-xs opacity-40 mt-1">{d.orders.approvedOrders} הזמנות שאושרו וממתינות לייצור ומשלוח</p>
                 </div>
                 <div>
                   <p className="text-sm opacity-70 mb-1">כמה ייצרנו היום?</p>
-                  <p className="text-3xl font-bold" style={{ fontFamily: 'var(--font-display), Heebo, sans-serif' }}>
+                  <p className="text-3xl font-bold" style={{ fontFamily: 'var(--font-heebo), Heebo, sans-serif' }}>
                     <bdi dir="ltr">{d.production.producedUnits?.toLocaleString()}</bdi>
                     <span className="text-lg opacity-50"> מתוך <bdi dir="ltr">{d.production.plannedUnits?.toLocaleString()}</bdi></span>
                   </p>

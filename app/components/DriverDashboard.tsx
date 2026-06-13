@@ -78,7 +78,7 @@ function StatTile({
     : tone === 'warn' ? '#daa555'
     : 'var(--ht-accent)';
   return (
-    <div className="rounded-2xl p-4 relative overflow-hidden" style={{
+    <div className="rounded-xl p-4 relative overflow-hidden" style={{
       background: 'var(--ht-surface)',
       border: '1px solid var(--ht-border)',
     }}>
@@ -219,7 +219,7 @@ export default function DriverDashboard({ user }: Props) {
 
       {data.currentActive ? (
         // STATE A — actively driving
-        <div className="rounded-2xl overflow-hidden relative" style={{
+        <div className="rounded-xl overflow-hidden relative" style={{
           background: 'linear-gradient(135deg, var(--ht-accent) 0%, #1a3a6b 100%)',
         }}>
           {/* Decorative grain */}
@@ -263,7 +263,7 @@ export default function DriverDashboard({ user }: Props) {
         </div>
       ) : data.nextUp ? (
         // STATE B/C — next delivery
-        <div className="rounded-2xl p-5 relative" style={{
+        <div className="rounded-xl p-5 relative" style={{
           background: data.nextUp.deliveryDate === todayStr ? 'var(--ht-info-bg)' : 'var(--ht-surface)',
           border: '1px solid var(--ht-border)',
         }}>
@@ -306,11 +306,11 @@ export default function DriverDashboard({ user }: Props) {
         </div>
       ) : (
         // STATE D — nothing to do
-        <div className="rounded-2xl p-6 flex items-center gap-4" style={{
+        <div className="rounded-xl p-6 flex items-center gap-4" style={{
           background: 'var(--ht-success-bg)',
           border: '1px solid var(--ht-border)',
         }}>
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'var(--ht-success)' }}>
+          <div className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--ht-success)' }}>
             <IconCheck size={26} className="text-white" />
           </div>
           <div>
@@ -350,7 +350,7 @@ export default function DriverDashboard({ user }: Props) {
           ===================================================================== */}
 
       {data.today.length > 0 && (
-        <div className="rounded-2xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+        <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
           <h3 className="text-sm font-bold mb-3 opacity-80">{todayCount > 1 ? 'המשלוחים שלך היום' : 'המסלול שלך היום'}</h3>
           <div className="space-y-2">
             {data.today.map(del => (
@@ -384,7 +384,7 @@ export default function DriverDashboard({ user }: Props) {
           WEEKLY SCHEDULE STRIP — visual day-by-day
           ===================================================================== */}
 
-      <div className="rounded-2xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+      <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-bold opacity-80">השבוע</h3>
           <span className="text-xs opacity-40">7 ימים קדימה</span>
@@ -441,7 +441,7 @@ export default function DriverDashboard({ user }: Props) {
           ===================================================================== */}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="rounded-2xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+        <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
           <SuccessRing
             percent={data.stats.lifetime.successRate}
             delivered={data.stats.lifetime.delivered}
@@ -449,7 +449,7 @@ export default function DriverDashboard({ user }: Props) {
           />
         </div>
 
-        <div className="rounded-2xl p-5 flex flex-col justify-between" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+        <div className="rounded-xl p-5 flex flex-col justify-between" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
           <p className="text-xs opacity-50 font-bold">החודש הזה</p>
           <div className="flex items-baseline gap-2 my-3">
             <span className="text-5xl font-bold tabular-nums" style={{ color: 'var(--ht-primary)' }}>
