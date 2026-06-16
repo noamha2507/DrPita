@@ -79,9 +79,9 @@ export async function GET(request: NextRequest) {
     const totalValue = (orders || []).reduce((s: number, o: any) => s + (o.total_amount || 0), 0);
 
     // Determine route label from first customer's address
-    const { getRouteKeyFromAddress, getRouteLabel } = await import('@/lib/services/RoutePlanner');
+    const { AutoAssignmentService } = await import('@/lib/services/AutoAssignmentService');
     const firstAddress = (orders || [])[0]?.customers?.address || '';
-    const routeLabel = getRouteLabel(getRouteKeyFromAddress(firstAddress));
+    const routeLabel = AutoAssignmentService.getRouteLabel(AutoAssignmentService.getRouteKeyFromAddress(firstAddress));
 
     return NextResponse.json({
       delivery: {

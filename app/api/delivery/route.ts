@@ -88,11 +88,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Import route resolver
-    const { getRouteKeyFromAddress, getRouteLabel } = await import('@/lib/services/RoutePlanner');
+    const { AutoAssignmentService } = await import('@/lib/services/AutoAssignmentService');
 
     let enriched = (data || []).map((d: any) => {
       const firstAddress = countMap[d.delivery_id]?.firstAddress || '';
-      const routeKey = getRouteKeyFromAddress(firstAddress);
+      const routeKey = AutoAssignmentService.getRouteKeyFromAddress(firstAddress);
       return {
         deliveryId: d.delivery_id,
         driverId: d.driver_id,
@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
         createdAt: d.created_at,
         orderCount: countMap[d.delivery_id]?.count || 0,
         totalValue: countMap[d.delivery_id]?.total || 0,
-        routeLabel: getRouteLabel(routeKey),
+        routeLabel: AutoAssignmentService.getRouteLabel(routeKey),
       };
     });
 

@@ -111,7 +111,7 @@ export async function GET() {
 
     // Recent deliveries — route label derived from first customer address,
     // plus stop count and total value per delivery.
-    const { getRouteKeyFromAddress, getRouteLabel } = await import('@/lib/services/RoutePlanner');
+    const { AutoAssignmentService } = await import('@/lib/services/AutoAssignmentService');
     const recentDeliveryIds = (recentDeliveriesRes.data || []).map((d: any) => d.delivery_id);
     const { data: recentDelOrders } = await supabase
       .from('orders')
@@ -127,7 +127,7 @@ export async function GET() {
     const recentDeliveriesList = (recentDeliveriesRes.data || []).map((d: any) => {
       const driverName = d.employees?.full_name || '';
       const agg = delAgg[d.delivery_id] || { stops: 0, value: 0, firstAddress: '' };
-      const route = getRouteLabel(getRouteKeyFromAddress(agg.firstAddress));
+      const route = AutoAssignmentService.getRouteLabel(AutoAssignmentService.getRouteKeyFromAddress(agg.firstAddress));
       return {
         deliveryId: d.delivery_id, status: d.status, createdAt: d.created_at,
         driverName, vehiclePlate: d.vehicles?.license_plate || '',

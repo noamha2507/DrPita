@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/db/supabase';
-import { getRouteKeyFromAddress, getRouteLabel } from '@/lib/services/RoutePlanner';
+import { AutoAssignmentService } from '@/lib/services/AutoAssignmentService';
 
 /**
  * GET /api/driver/dashboard?driverId=X
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     const decorated = (deliveries || []).map((d: any) => {
       const ordersForDel = ordersByDelivery.get(d.delivery_id) || [];
       const firstAddress = ordersForDel[0]?.customers?.address || '';
-      const routeLabel = getRouteLabel(getRouteKeyFromAddress(firstAddress));
+      const routeLabel = AutoAssignmentService.getRouteLabel(AutoAssignmentService.getRouteKeyFromAddress(firstAddress));
       const deliveryDate = ordersForDel[0]?.required_delivery_date?.substring(0, 10) || null;
       const totalValue = ordersForDel.reduce((s: number, o: any) => s + (o.total_amount || 0), 0);
       return {

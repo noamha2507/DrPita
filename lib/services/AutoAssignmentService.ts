@@ -4,7 +4,10 @@ import { ProductionController } from '../controllers/ProductionController';
 import { OrderItem } from '../models/OrderItem';
 import { BillOfMaterials } from '../models/BillOfMaterials';
 import { RawMaterial } from '../models/RawMaterial';
-import { getRouteKeyFromAddress, RouteKey } from './RoutePlanner';
+
+// Logical delivery route, derived from a customer's city.
+export type RouteKey = 'shfela' | 'tel_aviv' | 'sharon' | 'other';
+interface RouteInfo { key: RouteKey; label: string; cities: string[]; }
 
 /**
  * Automation layer triggered AFTER an order is created.
@@ -19,6 +22,37 @@ import { getRouteKeyFromAddress, RouteKey } from './RoutePlanner';
  *      (or create one if no active delivery exists)
  */
 export class AutoAssignmentService {
+
+  // ===========================================================================
+  // ROUTE GROUPING — map a customer address to a logical delivery route.
+  // (folded in from the former RoutePlanner module so the whole automation
+  //  lives in a single service class.)
+  // ===========================================================================
+  private static readonly ROUTES: RouteInfo[] = [
+    { key: 'shfela', label: 'קו רמלה ולוד', cities: ['רמלה', 'לוד', 'מודיעין', 'נס ציונה', 'רחובות', 'ראשון לציון', 'יבנה'] },
+    { key: 'tel_aviv', label: 'קו תל אביב ויפו', cities: ['יפו', 'תל אביב', 'נמל יפו', 'בת ים', 'חולון', 'גבעתיים', 'רמת גן'] },
+    { key: 'sharon', label: 'קו פתח תקווה והשרון', cities: ['פתח תקווה', 'ראש העין', 'הוד השרון', 'כפר סבא', 'רעננה', 'הרצליה'] },
+  ];
+  private static readonly FALLBACK_ROUTE: RouteInfo = { key: 'other', label: 'קו כללי', cities: [] };
+
+  static getRouteKeyFromAddress(address: string | null | undefined): RouteKey {
+    if (!address) return 'other';
+    for (const route of AutoAssignmentService.ROUTES) {
+      for (const city of route.cities) {
+        if (address.includes(city)) return route.key;
+      }
+    }
+    return 'other';
+  }
+
+  static getRouteLabel(key: RouteKey): string {
+    const route = AutoAssignmentService.ROUTES.find(r => r.key === key);
+    return route ? route.label : AutoAssignmentService.FALLBACK_ROUTE.label;
+  }
+
+  static getAllRoutes(): RouteInfo[] {
+    return [...AutoAssignmentService.ROUTES, AutoAssignmentService.FALLBACK_ROUTE];
+  }
 
   /**
    * Run automation after an order is successfully created (Approved).
@@ -161,7 +195,7 @@ export class AutoAssignmentService {
 
     const newOrderCustomerId = (orderInfo as any)?.customer_id;
     const customerAddress = (orderInfo as any)?.customers?.address || '';
-    const newOrderRouteKey: RouteKey = getRouteKeyFromAddress(customerAddress);
+    const newOrderRouteKey: RouteKey = AutoAssignmentService.getRouteKeyFromAddress(customerAddress);
 
     // Look for existing active deliveries (Planned/Assigned/Loaded)
     const { data: existingDeliveries } = await supabase
@@ -209,7 +243,7 @@ export class AutoAssignmentService {
           const matchesDate = orders.every((o: any) => o.required_delivery_date?.substring(0, 10) === deliveryDate);
           if (!matchesDate) continue;
           const firstAddress = (orders[0] as any).customers?.address || '';
-          const deliveryRouteKey: RouteKey = getRouteKeyFromAddress(firstAddress);
+          const deliveryRouteKey: RouteKey = AutoAssignmentService.getRouteKeyFromAddress(firstAddress);
           if (deliveryRouteKey !== newOrderRouteKey) continue;
           targetDeliveryId = del.delivery_id;
           break;
@@ -327,7 +361,7 @@ export class AutoAssignmentService {
       dateMatched.push({
         deliveryId: del.delivery_id,
         createdAt: del.created_at,
-        routeKey: getRouteKeyFromAddress(firstAddress),
+        routeKey: AutoAssignmentService.getRouteKeyFromAddress(firstAddress),
         orderIds: ordersInDel.map((o: any) => o.order_id),
         customerIds: new Set(ordersInDel.map((o: any) => o.customer_id)),
       });
