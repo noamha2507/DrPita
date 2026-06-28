@@ -1,6 +1,7 @@
 import { supabase } from '../db/supabase';
 import { EmployeeRole } from '../enums';
 
+// [תרשים מחלקות] Employee — עובד (כולל נהגים) · טבלה: employees.
 export class Employee {
   employeeId: number;
   fullName: string;

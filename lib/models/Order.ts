@@ -1,6 +1,7 @@
 import { supabase } from '../db/supabase';
 import { OrderStatus } from '../enums';
 
+// [תרשים מחלקות] Order — הזמנה — נוצרת ב-FR1, סטטוס מתעדכן ב-FR3 · טבלה: orders.
 export class Order {
   orderId: number;
   customerId: number;

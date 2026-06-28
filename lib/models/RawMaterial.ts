@@ -1,5 +1,6 @@
 import { supabase } from '../db/supabase';
 
+// [תרשים מחלקות] RawMaterial — חומר גלם — בדיקת מלאי פיזי ב-FR2 · טבלה: raw_materials.
 export class RawMaterial {
   materialId: number;
   materialName: string;

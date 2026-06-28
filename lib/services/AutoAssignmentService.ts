@@ -21,6 +21,7 @@ interface RouteInfo { key: RouteKey; label: string; cities: string[]; }
  *   2. Auto-attach to an existing delivery for date X
  *      (or create one if no active delivery exists)
  */
+// 🟧 תוספת חלק ג׳ (מסומנת בתרשים המחלקות): שכבת אוטומציה שמתזמרת את הזרימות הקיימות. אינה חלק מליבת FR1/2/3.
 export class AutoAssignmentService {
 
   // ===========================================================================

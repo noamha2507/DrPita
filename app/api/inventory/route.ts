@@ -7,6 +7,8 @@ export async function GET() {
     const { data, error } = await supabase
       .from('raw_materials')
       .select('*, suppliers(supplier_name, phone)')
+      // מים מגיעים מהברז ואינם פריט מלאי נרכש/נספר — מוסתרים ממסך המלאי (נשארים במתכון/BOM לצורך FR2)
+      .neq('material_name', 'מים')
       .order('material_id', { ascending: true });
     if (error) throw error;
 

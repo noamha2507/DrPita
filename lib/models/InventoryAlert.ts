@@ -1,5 +1,6 @@
 import { supabase } from '../db/supabase';
 
+// [תרשים מחלקות] InventoryAlert — התראת מלאי נמוך · טבלה: inventory_alerts.
 export class InventoryAlert {
   alertId: number;
   materialId: number;

@@ -1,5 +1,6 @@
 import { supabase } from '../db/supabase';
 
+// [תרשים מחלקות] Supplier — ספק חומרי גלם · טבלה: suppliers.
 export class Supplier {
   supplierId: number;
   supplierName: string;

@@ -1,5 +1,6 @@
 import { supabase } from '../db/supabase';
 
+// [תרשים מחלקות] Product — מוצר (פיתה) — בדיקת מלאי ב-FR1 · טבלה: products.
 export class Product {
   productId: number;
   productName: string;

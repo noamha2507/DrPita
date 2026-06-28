@@ -3,6 +3,7 @@ import { BillOfMaterials } from '../models/BillOfMaterials';
 import { RawMaterial } from '../models/RawMaterial';
 import { ProductionPlan } from '../models/ProductionPlan';
 
+// [בקר · תרשים זרימה FR2] נקודת הכניסה לתכנון ייצור. generatePlan() מממש את הודעות SD2: שליפת הזמנות מאושרות → חישוב חומרי גלם → בדיקת מלאי → יצירת תוכנית.
 export class ProductionController {
   // SD2 message #2: generatePlan(targetDate)
   static async generatePlan(

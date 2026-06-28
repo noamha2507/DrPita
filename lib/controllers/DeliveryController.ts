@@ -4,6 +4,7 @@ import { DeliveryNote } from '../models/DeliveryNote';
 import { Customer } from '../models/Customer';
 import { EmailService } from '../models/EmailService';
 
+// [בקר · תרשים זרימה FR3] נקודת הכניסה לסגירת משלוח. completeDelivery() מממש את הודעות SD3: פרטי משלוח → עדכון סטטוסים → תעודת משלוח → מייל ללקוח.
 export class DeliveryController {
   // SD3 message #2: completeDelivery(deliveryId, signatureFile)
   static async completeDelivery(

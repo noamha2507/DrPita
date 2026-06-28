@@ -1,5 +1,6 @@
 import { supabase } from '../db/supabase';
 
+// [תרשים מחלקות] OrderItem — שורת הזמנה — FR1 (קליטה), FR2 (מקור לתכנון) · טבלה: order_items.
 export class OrderItem {
   orderItemId: number;
   orderId: number;

@@ -1,5 +1,6 @@
 import { supabase } from '../db/supabase';
 
+// [תרשים מחלקות] BillOfMaterials — עץ מוצר (חומרי גלם לפיתה) — FR2 · טבלה: bill_of_materials.
 export class BillOfMaterials {
   bomId: number;
   productId: number;

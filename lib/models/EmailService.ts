@@ -1,3 +1,4 @@
+// [תרשים מחלקות] EmailService — שירות שליחת מייל ללקוח — FR3 (אין טבלה).
 export class EmailService {
   // SD3 message #11: sendDeliveryNotePDF(customerEmail, deliveryNoteId)
   static async sendDeliveryNotePDF(customerEmail: string, deliveryNoteId: number): Promise<boolean> {

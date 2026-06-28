@@ -1,6 +1,7 @@
 import { supabase } from '../db/supabase';
 import { DeliveryStatus } from '../enums';
 
+// [תרשים מחלקות] Delivery — משלוח — נסגר ב-FR3 · טבלה: deliveries.
 export class Delivery {
   deliveryId: number;
   driverId: number;

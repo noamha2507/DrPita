@@ -12,7 +12,8 @@ export async function GET(request: NextRequest) {
         supabase.from('orders').select('order_id, status, total_amount, created_at'),
         supabase.from('production_plans').select('plan_id, status, plan_date'),
         supabase.from('deliveries').select('delivery_id, status'),
-        supabase.from('raw_materials').select('material_id, material_name, current_quantity, minimum_threshold, unit'),
+        // מים מוסתרים מדוח חומרי הגלם (מגיעים מהברז; נשארים ב-BOM לחישוב FR2)
+        supabase.from('raw_materials').select('material_id, material_name, current_quantity, minimum_threshold, unit').neq('material_name', 'מים'),
       ]);
 
       const orders = ordersRes.data || [];

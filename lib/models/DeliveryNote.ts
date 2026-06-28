@@ -1,5 +1,6 @@
 import { supabase } from '../db/supabase';
 
+// [תרשים מחלקות] DeliveryNote — תעודת משלוח — נוצרת ב-FR3 · טבלה: delivery_notes.
 export class DeliveryNote {
   noteId: number;
   deliveryId: number;

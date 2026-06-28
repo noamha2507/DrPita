@@ -1,5 +1,6 @@
 import { supabase } from '../db/supabase';
 
+// [תרשים מחלקות] Role — תפקיד והרשאות · טבלה: roles.
 export class Role {
   roleId: number;
   roleName: string;

@@ -1,5 +1,6 @@
 import { supabase } from '../db/supabase';
 
+// [תרשים מחלקות] User — משתמש — מסך כניסה והזדהות · טבלה: users.
 export class User {
   userId: number;
   username: string;

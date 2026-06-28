@@ -2,6 +2,7 @@ import { supabase } from '../db/supabase';
 import { ProductionPlanStatus } from '../enums';
 import { ProductionPlanItem } from './ProductionPlanItem';
 
+// [תרשים מחלקות] ProductionPlan — תוכנית ייצור יומית — FR2 · טבלה: production_plans.
 export class ProductionPlan {
   planId: number;
   planDate: string;

@@ -1,5 +1,6 @@
 import { supabase } from '../db/supabase';
 
+// [תרשים מחלקות] ProductionPlanItem — שורת תוכנית ייצור — FR2 · טבלה: production_plan_items.
 export class ProductionPlanItem {
   planItemId: number;
   planId: number;

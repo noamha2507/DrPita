@@ -1,6 +1,7 @@
 import { supabase } from '../db/supabase';
 import { CustomerStatus } from '../enums';
 
+// [תרשים מחלקות] Customer — לקוח — בדיקת אשראי ב-FR1, מייל ב-FR3 · טבלה: customers.
 export class Customer {
   customerId: number;
   businessName: string;

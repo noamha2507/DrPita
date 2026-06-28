@@ -1,5 +1,6 @@
 import { supabase } from '../db/supabase';
 
+// [תרשים מחלקות] ManagementReport — דוחות ניהול — מצרף נתונים ממספר טבלאות.
 export class ManagementReport {
   reportId: number;
   reportType: string;

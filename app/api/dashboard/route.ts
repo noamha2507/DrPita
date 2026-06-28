@@ -16,7 +16,8 @@ export async function GET() {
       supabase.from('production_plan_items').select('planned_quantity, produced_quantity, production_plans!inner(status)').in('production_plans.status', ['In Progress', 'InProgress']),
       supabase.from('deliveries').select('delivery_id, status, driver_id'),
       supabase.from('delivery_notes').select('note_id'),
-      supabase.from('raw_materials').select('material_id, material_name, current_quantity, minimum_threshold, unit'),
+      // מים מוסתרים מתצוגת חומרי הגלם בדשבורד (מגיעים מהברז; נשארים ב-BOM לחישוב FR2)
+      supabase.from('raw_materials').select('material_id, material_name, current_quantity, minimum_threshold, unit').neq('material_name', 'מים'),
       supabase.from('orders').select('order_id, status, total_amount, created_at, required_delivery_date, customers(business_name, credit_limit, current_balance)').order('created_at', { ascending: false }).limit(5),
       supabase.from('production_plans').select('plan_id, plan_date, status, created_at').order('created_at', { ascending: false }).limit(5),
       supabase.from('deliveries').select('delivery_id, status, created_at, employees(full_name), vehicles(license_plate)').order('created_at', { ascending: false }).limit(5),

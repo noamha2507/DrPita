@@ -1,5 +1,6 @@
 import { supabase } from '../db/supabase';
 
+// [תרשים מחלקות] Vehicle — רכב חלוקה · טבלה: vehicles.
 export class Vehicle {
   vehicleId: number;
   licensePlate: string;

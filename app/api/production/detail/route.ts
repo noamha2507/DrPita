@@ -50,6 +50,8 @@ export async function GET(request: NextRequest) {
         .eq('product_id', item.productId);
 
       for (const bom of (bomEntries || [])) {
+        // מים מגיעים מהברז — לא מוצגים כפריט חומר גלם נספר (תצוגה בלבד; נשארים ב-BOM לחישוב FR2)
+        if (bom.raw_materials?.material_name === 'מים') continue;
         const matId = bom.material_id;
         const needed = bom.required_amount * item.plannedQuantity;
         if (!materials[matId]) {

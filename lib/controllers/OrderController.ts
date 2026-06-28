@@ -9,6 +9,7 @@ interface OrderItemInput {
   unitPrice: number;
 }
 
+// [בקר · תרשים זרימה FR1] נקודת הכניסה לקליטת הזמנה. processOrder() מממש את הודעות SD1 (#2–#8): בדיקת מלאי → בדיקת אשראי → אימות → יצירת הזמנה.
 export class OrderController {
   // SD1 message #2: processOrder(customerId, itemsList)
   static async processOrder(
