@@ -3,14 +3,50 @@ import { supabase } from '@/lib/db/supabase';
 
 // GET — production-worker home dashboard.
 // Production plans are shared across the bakery (not assigned per worker),
-// so this reflects the floor's production state: what's in production now,
-// what's waiting for materials, and how much has been produced.
+// so this reflects the floor's production state.
+//
+// Business rule (from the domain): a production plan runs on the NIGHT OF its
+// plan_date — the night before delivery. Production is therefore a one-night
+// event, not an open-ended state. So the badge shown to the worker is derived
+// from plan_date relative to today, NOT taken verbatim from the stored status:
+//   plan_date in the future → "מתוכנן" (not produced yet)
+//   plan_date is today       → "בייצור" (running tonight)
+//   plan_date in the past     → its night passed → "הושלם"
+// Stored status still governs the WaitingForMaterials / Cancelled cases, and
+// the controllers / State diagram are unchanged — this is a presentation layer.
 
 const dayNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
 const isInProgress = (s: string) => s === 'In Progress' || s === 'InProgress';
 const isWaiting = (s: string) => s === 'Waiting For Materials' || s === 'WaitingForMaterials';
-const isCompleted = (s: string) => s === 'Completed';
+const isCancelled = (s: string) => s === 'Cancelled';
+
+// Today's date in Israel time (Vercel runs in UTC), as 'YYYY-MM-DD' for safe
+// lexical comparison with the stored plan_date strings.
+function israelToday(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+}
+
+// Where a plan sits relative to its production night.
+function cycleOf(planDate: string, today: string): 'past' | 'today' | 'future' {
+  const d = (planDate || '').slice(0, 10);
+  if (d < today) return 'past';
+  if (d > today) return 'future';
+  return 'today';
+}
+
+// Display status derived from the production-night rule.
+function displayStatusOf(dbStatus: string, cycle: 'past' | 'today' | 'future'): string {
+  if (isCancelled(dbStatus)) return 'Cancelled';
+  if (isWaiting(dbStatus)) return 'Waiting For Materials';
+  if (dbStatus === 'Completed') return 'Completed';
+  if (isInProgress(dbStatus)) {
+    if (cycle === 'future') return 'Planned';
+    if (cycle === 'today') return 'In Progress';
+    return 'Completed'; // past production night → its run is over
+  }
+  return dbStatus;
+}
 
 export async function GET() {
   try {
@@ -23,6 +59,7 @@ export async function GET() {
     const plans = plansRes.data || [];
     const items = itemsRes.data || [];
     const bom = bomRes.data || [];
+    const today = israelToday();
 
     // Aggregate planned/produced units per plan + planned units per product
     const byPlan: Record<number, { planned: number; produced: number; count: number; products: Record<number, number> }> = {};
@@ -39,8 +76,10 @@ export async function GET() {
       const date = new Date(pl.plan_date);
       const dayName = dayNames[date.getDay()];
       const dateStr = date.toLocaleDateString('he-IL', { day: 'numeric', month: 'long' });
+      const cycle = cycleOf(pl.plan_date, today);
       return {
         planId: pl.plan_id, status: pl.status, planDate: pl.plan_date, createdAt: pl.created_at,
+        cycle, displayStatus: displayStatusOf(pl.status, cycle),
         label: `יום ${dayName}, ${dateStr}`,
         plannedUnits: agg.planned, producedUnits: agg.produced, itemCount: agg.count,
         products: agg.products,
@@ -49,14 +88,25 @@ export async function GET() {
 
     const rows = plans.map(mkRow);
     const byDateDesc = (a: any, b: any) => new Date(b.planDate).getTime() - new Date(a.planDate).getTime();
+    const byDateAsc = (a: any, b: any) => new Date(a.planDate).getTime() - new Date(b.planDate).getTime();
 
-    const active = rows.filter(r => isInProgress(r.status)).sort(byDateDesc);
-    const waiting = rows.filter(r => isWaiting(r.status)).sort(byDateDesc);
-    const completed = rows.filter(r => isCompleted(r.status)).sort(byDateDesc);
+    // "Open" = needs attention now: running tonight, or a current/upcoming plan
+    // still waiting for materials. Past nights are no longer open.
+    const openTonightProd = rows.filter(r => r.displayStatus === 'In Progress');
+    const openWaiting = rows.filter(r => r.displayStatus === 'Waiting For Materials' && r.cycle !== 'past');
+    const upcoming = rows.filter(r => r.displayStatus === 'Planned').sort(byDateAsc);
+    const open = [...openTonightProd, ...openWaiting];
 
-    // Focus plan for the hero: prefer the work in progress, then what's waiting,
-    // then the most recently completed.
-    const focus = active[0] || waiting[0] || completed[0] || null;
+    const completed = rows.filter(r => r.displayStatus === 'Completed').sort(byDateDesc);
+
+    // Focus for the hero, by relevance to "now":
+    //   tonight's run → tonight's blocked plan → next upcoming → most recent past
+    const focus =
+      openTonightProd[0] ||
+      openWaiting.sort(byDateAsc)[0] ||
+      upcoming[0] ||
+      completed[0] ||
+      null;
 
     // Raw-material readiness for the focus plan: BOM × planned units vs. current
     // stock. Water is excluded (comes from the tap, not a counted stock item).
@@ -84,32 +134,32 @@ export async function GET() {
     // Recent production strip — last 7 plans by date
     const recentPlans = [...rows].sort(byDateDesc).slice(0, 7).map(({ products, ...r }) => r);
 
-    // Stats — units produced/planned in the last 7 / 30 days, and overall completion
-    const now = Date.now();
-    const DAY = 86400000;
-    const sinceWeek = now - 7 * DAY;
-    const sinceMonth = now - 30 * DAY;
-    const inWindow = rows.filter(r => new Date(r.planDate).getTime() >= sinceWeek);
-    const inMonth = rows.filter(r => new Date(r.planDate).getTime() >= sinceMonth);
+    // Stats — overall produced vs planned (real recorded output, honest numbers)
+    const nonCancelled = rows.filter(r => !isCancelled(r.status));
     const sumK = (arr: any[], k: 'plannedUnits' | 'producedUnits') => arr.reduce((s, r) => s + (r[k] || 0), 0);
+    const totalPlanned = sumK(nonCancelled, 'plannedUnits');
+    const totalProduced = sumK(nonCancelled, 'producedUnits');
 
-    const totalPlanned = sumK(rows, 'plannedUnits');
-    const totalProduced = sumK(rows, 'producedUnits');
+    // This month's recorded production
+    const monthAgo = Date.now() - 30 * 86400000;
+    const inMonth = nonCancelled.filter(r => new Date(r.planDate).getTime() >= monthAgo);
+
+    const strip = (r: any) => { const { products, ...rest } = r; return rest; };
 
     return NextResponse.json({
-      focus: focus ? (({ products, ...r }) => r)(focus) : null,
+      today,
+      focus: focus ? strip(focus) : null,
       focusMaterials,
-      active: active.map(({ products, ...r }) => r),
-      waiting: waiting.map(({ products, ...r }) => r),
+      open: open.map(strip),
+      upcoming: upcoming.map(strip),
       recentPlans,
       totals: {
-        activeCount: active.length,
-        waitingCount: waiting.length,
+        openCount: open.length,
+        upcomingCount: upcoming.length,
         completedCount: completed.length,
         totalPlans: rows.length,
       },
       stats: {
-        week: { planned: sumK(inWindow, 'plannedUnits'), produced: sumK(inWindow, 'producedUnits') },
         month: { planned: sumK(inMonth, 'plannedUnits'), produced: sumK(inMonth, 'producedUnits') },
         lifetime: {
           produced: totalProduced,

@@ -22,6 +22,8 @@ const statusLabels: Record<string, string> = {
 interface PlanRow {
   planId: number;
   status: string;
+  displayStatus: string;
+  cycle: 'past' | 'today' | 'future';
   planDate: string;
   label: string;
   plannedUnits: number;
@@ -39,14 +41,14 @@ interface MaterialRow {
 }
 
 interface ProductionData {
+  today: string;
   focus: PlanRow | null;
   focusMaterials: MaterialRow[];
-  active: PlanRow[];
-  waiting: PlanRow[];
+  open: PlanRow[];
+  upcoming: PlanRow[];
   recentPlans: PlanRow[];
-  totals: { activeCount: number; waitingCount: number; completedCount: number; totalPlans: number };
+  totals: { openCount: number; upcomingCount: number; completedCount: number; totalPlans: number };
   stats: {
-    week: { planned: number; produced: number };
     month: { planned: number; produced: number };
     lifetime: { produced: number; planned: number; completionRate: number; completedPlans: number };
   };
@@ -55,9 +57,6 @@ interface ProductionData {
 interface Props {
   user: { username: string; employeeId: number; fullName?: string };
 }
-
-const isInProgress = (s: string) => s === 'In Progress' || s === 'InProgress';
-const isWaiting = (s: string) => s === 'Waiting For Materials' || s === 'WaitingForMaterials';
 
 // ============================================================================
 // Reusable visual primitives (same look as the driver dashboard)
@@ -83,12 +82,13 @@ function StatTile({ value, label, icon, tone = 'neutral' }: {
   );
 }
 
-function CompletionRing({ percent, produced, planned }: { percent: number; produced: number; planned: number }) {
+function CompletionRing({ percent, done, total }: { percent: number; done: number; total: number }) {
   const radius = 52;
   const stroke = 8;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (percent / 100) * circumference;
   const color = percent >= 95 ? '#22c55e' : percent >= 70 ? 'var(--ht-accent)' : '#daa555';
+  const open = Math.max(0, total - done);
 
   return (
     <div className="flex items-center gap-4">
@@ -101,21 +101,21 @@ function CompletionRing({ percent, produced, planned }: { percent: number; produ
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="text-3xl font-bold tabular-nums" style={{ color }}>{percent}%</span>
-          <span className="text-[10px] opacity-50">הושלם</span>
+          <span className="text-[10px] opacity-50">הושלמו</span>
         </div>
       </div>
       <div className="flex-1">
-        <p className="text-xs font-bold opacity-50 mb-2">סך הייצור</p>
+        <p className="text-xs font-bold opacity-50 mb-2">ימי ייצור</p>
         <div className="space-y-1.5">
           <div className="flex items-center gap-2 text-sm">
             <span className="w-2 h-2 rounded-full" style={{ background: '#22c55e' }}></span>
-            <span className="opacity-70">יוצרו</span>
-            <span className="font-bold ms-auto tabular-nums"><bdi dir="ltr">{produced.toLocaleString()}</bdi></span>
+            <span className="opacity-70">הושלמו</span>
+            <span className="font-bold ms-auto tabular-nums"><bdi dir="ltr">{done}</bdi></span>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <span className="w-2 h-2 rounded-full" style={{ background: 'var(--ht-border)' }}></span>
-            <span className="opacity-70">מתוכננים</span>
-            <span className="font-bold ms-auto tabular-nums"><bdi dir="ltr">{planned.toLocaleString()}</bdi></span>
+            <span className="opacity-70">לא הושלמו</span>
+            <span className="font-bold ms-auto tabular-nums"><bdi dir="ltr">{open}</bdi></span>
           </div>
         </div>
       </div>
@@ -123,21 +123,21 @@ function CompletionRing({ percent, produced, planned }: { percent: number; produ
   );
 }
 
-function WeekProgressBar({ produced, planned }: { produced: number; planned: number }) {
-  const percent = planned === 0 ? 0 : Math.round((produced / planned) * 100);
+function NightsProgressBar({ done, total }: { done: number; total: number }) {
+  const percent = total === 0 ? 0 : Math.round((done / total) * 100);
   const color = percent >= 80 ? '#22c55e' : percent >= 50 ? 'var(--ht-accent)' : '#daa555';
   return (
     <div>
       <div className="flex items-baseline justify-between mb-2">
-        <p className="text-xs opacity-60">פיתות שיוצרו (אחרונות)</p>
+        <p className="text-xs opacity-60">לילות ייצור שהושלמו (אחרונים)</p>
         <p className="text-sm font-bold tabular-nums">
-          <span style={{ color }}><bdi dir="ltr">{produced.toLocaleString()}</bdi></span>
-          <span className="opacity-30"> / <bdi dir="ltr">{planned.toLocaleString()}</bdi></span>
+          <span style={{ color }}><bdi dir="ltr">{done}</bdi></span>
+          <span className="opacity-30"> / <bdi dir="ltr">{total}</bdi></span>
         </p>
       </div>
       <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'var(--ht-border)' }}>
         <div className="h-full rounded-full"
-          style={{ width: `${Math.max(percent, planned === 0 ? 0 : 4)}%`, background: color, transition: 'width 1.2s ease-out' }}></div>
+          style={{ width: `${Math.max(percent, total === 0 ? 0 : 4)}%`, background: color, transition: 'width 1.2s ease-out' }}></div>
       </div>
     </div>
   );
@@ -176,23 +176,44 @@ export default function ProductionDashboard({ user }: Props) {
   const remaining = focus ? Math.max(0, focus.plannedUnits - focus.producedUnits) : 0;
   const shortMaterials = focusMaterials.filter(m => !m.sufficient);
   const maxUnits = Math.max(1, ...data.recentPlans.map(p => p.plannedUnits));
-  // Progress bar reflects the same recent plans shown in the strip below, so it
-  // always tracks the visible data (a calendar-week window can be empty).
-  const recentPlanned = data.recentPlans.reduce((s, p) => s + p.plannedUnits, 0);
-  const recentProduced = data.recentPlans.reduce((s, p) => s + p.producedUnits, 0);
+  const { openCount, upcomingCount, completedCount, totalPlans } = data.totals;
+  // Lifecycle completion (production NIGHTS done), not produced_quantity — the
+  // latter isn't tracked here, so a unit ratio would understate reality.
+  const planCompletion = totalPlans > 0 ? Math.round((completedCount / totalPlans) * 100) : 0;
+  // Progress bar: how many of the recent nights are done.
+  const recentDone = data.recentPlans.filter(p => p.displayStatus === 'Completed').length;
+  const recentTotal = data.recentPlans.length;
+
+  // Hero framing follows the production-night rule (see API): only tonight's run
+  // is "בייצור". Future = upcoming, past = the last run that already happened.
+  const heroTonight = focus && focus.cycle === 'today' && focus.displayStatus === 'In Progress';
+  const heroWaiting = focus && focus.cycle === 'today' && focus.displayStatus === 'Waiting For Materials';
+  const heroUpcoming = focus && focus.cycle === 'future';
 
   return (
     <div className="space-y-4">
 
       {/* =====================================================================
-          HERO — adapts to the focus plan's state
-          State A: In Progress  → active production now
-          State B: Waiting      → blocked on materials
-          State C: nothing open → all done
+          HERO — framed by the production-night rule
+          A: tonight's run (plan_date = today, In Progress) → "בייצור הלילה"
+          B: tonight's plan blocked on materials             → "ממתין לחומרים"
+          C: an upcoming plan (future date)                  → "הייצור הקרוב"
+          D: only past runs                                   → "הייצור האחרון"
           ===================================================================== */}
 
-      {focus && isInProgress(focus.status) ? (
-        // STATE A — production in progress
+      {!focus ? (
+        // No plans at all
+        <div className="rounded-xl p-6 flex items-center gap-4" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+          <div className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--ht-border)' }}>
+            <IconProduction size={26} />
+          </div>
+          <div>
+            <p className="text-lg font-bold" style={{ color: 'var(--ht-primary)' }}>אין תוכניות ייצור</p>
+            <p className="text-sm opacity-60 mt-0.5">תוכנית ייצור מופקת מההזמנות המאושרות, לליל הייצור שלפני האספקה.</p>
+          </div>
+        </div>
+      ) : heroTonight ? (
+        // STATE A — running tonight
         <div className="rounded-xl overflow-hidden relative" style={{
           background: 'linear-gradient(135deg, var(--ht-accent) 0%, #1a3a6b 100%)',
         }}>
@@ -205,7 +226,7 @@ export default function ProductionDashboard({ user }: Props) {
                 <span className="absolute inline-flex h-2.5 w-2.5 rounded-full opacity-75 animate-ping" style={{ background: '#fbbf24' }}></span>
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full" style={{ background: '#fbbf24' }}></span>
               </span>
-              <span className="text-[11px] font-bold tracking-widest uppercase opacity-80">בייצור עכשיו</span>
+              <span className="text-[11px] font-bold tracking-widest uppercase opacity-80">בייצור הלילה</span>
             </div>
             <h2 className="text-2xl font-bold mb-2">{focus.label}</h2>
             <div className="flex flex-wrap items-center gap-3 mb-4 text-sm" style={{ color: 'rgba(255,255,255,0.85)' }}>
@@ -226,12 +247,12 @@ export default function ProductionDashboard({ user }: Props) {
             </button>
           </div>
         </div>
-      ) : focus && isWaiting(focus.status) ? (
-        // STATE B — waiting for materials
+      ) : heroWaiting ? (
+        // STATE B — tonight's plan blocked on materials
         <div className="rounded-xl p-5 relative" style={{ background: 'var(--ht-warning-bg)', border: '1px solid var(--ht-border)' }}>
           <div className="flex items-center gap-2 mb-2">
             <IconClock size={14} className="opacity-50" />
-            <span className="text-[11px] font-bold tracking-widest uppercase opacity-50">ממתין לחומרי גלם</span>
+            <span className="text-[11px] font-bold tracking-widest uppercase opacity-50">ממתין לחומרי גלם — הלילה</span>
           </div>
           <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--ht-primary)' }}>{focus.label}</h2>
           <div className="flex flex-wrap items-center gap-3 mb-4 text-sm opacity-70">
@@ -249,16 +270,46 @@ export default function ProductionDashboard({ user }: Props) {
             פתח פרטים
           </button>
         </div>
+      ) : heroUpcoming ? (
+        // STATE C — an upcoming production night
+        <div className="rounded-xl p-5 relative" style={{ background: 'var(--ht-info-bg)', border: '1px solid var(--ht-border)' }}>
+          <div className="flex items-center gap-2 mb-2">
+            <IconClock size={14} className="opacity-50" />
+            <span className="text-[11px] font-bold tracking-widest uppercase opacity-50">הייצור הקרוב</span>
+          </div>
+          <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--ht-primary)' }}>{focus.label}</h2>
+          <div className="flex flex-wrap items-center gap-3 mb-4 text-sm opacity-70">
+            <span className="flex items-center gap-1.5">
+              <IconProduction size={14} /> <bdi dir="ltr">{focus.plannedUnits.toLocaleString()}</bdi> פיתות מתוכננות
+            </span>
+            <span className="opacity-30">·</span>
+            <span>הייצור מתבצע בליל ה-{focus.label.replace('יום ', '').replace(/^[^,]+, /, '')}</span>
+          </div>
+          <button onClick={() => router.push('/production')} className="btn-primary px-5 py-2.5 text-sm flex items-center gap-2">
+            פתח פרטים
+          </button>
+        </div>
       ) : (
-        // STATE C — nothing active
-        <div className="rounded-xl p-6 flex items-center gap-4" style={{ background: 'var(--ht-success-bg)', border: '1px solid var(--ht-border)' }}>
-          <div className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--ht-success)' }}>
-            <IconCheck size={26} className="text-white" />
+        // STATE D — only past runs; show the most recent one as history, no "now"
+        <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+          <div className="flex items-center gap-2 mb-2">
+            <span style={{ color: 'var(--ht-success)' }}><IconCheck size={14} /></span>
+            <span className="text-[11px] font-bold tracking-widest uppercase opacity-50">הייצור האחרון</span>
           </div>
-          <div>
-            <p className="text-lg font-bold" style={{ color: 'var(--ht-success)' }}>אין ייצור פעיל</p>
-            <p className="text-sm opacity-60 mt-0.5">כל תוכניות הייצור הושלמו. אפשר לנשום.</p>
+          <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--ht-primary)' }}>{focus.label}</h2>
+          <div className="flex flex-wrap items-center gap-3 mb-4 text-sm opacity-70">
+            <span className="flex items-center gap-1.5">
+              <IconProduction size={14} /> <bdi dir="ltr">{focus.plannedUnits.toLocaleString()}</bdi> פיתות
+            </span>
+            <span className="opacity-30">·</span>
+            <span className="flex items-center gap-1.5">
+              <span style={{ ...getStatusBadgeStyle('Completed'), fontSize: '10px', padding: '1px 8px' }}>הושלם</span>
+            </span>
           </div>
+          <p className="text-xs opacity-50 mb-3">הייצור מתבצע בלילה שלפני האספקה — ליל הייצור של תוכנית זו כבר עבר.</p>
+          <button onClick={() => router.push('/production')} className="btn-primary px-5 py-2.5 text-sm flex items-center gap-2">
+            פתח לוח ייצור
+          </button>
         </div>
       )}
 
@@ -269,21 +320,21 @@ export default function ProductionDashboard({ user }: Props) {
       <div className="grid grid-cols-3 gap-3">
         <StatTile
           value={<bdi dir="ltr">{(focus?.plannedUnits || 0).toLocaleString()}</bdi>}
-          label="פיתות לייצור"
+          label={focus?.cycle === 'future' ? 'פיתות בתוכנית הקרובה' : focus?.cycle === 'today' ? 'פיתות לייצור הלילה' : 'פיתות בייצור האחרון'}
           icon={<IconProduction size={64} />}
           tone="neutral"
         />
         <StatTile
-          value={<bdi dir="ltr">{(focus?.producedUnits || 0).toLocaleString()}</bdi>}
-          label="כבר יוצרו"
+          value={<bdi dir="ltr">{completedCount.toLocaleString()}</bdi>}
+          label="ימי ייצור שהושלמו"
           icon={<IconCheck size={64} />}
-          tone={focus && focus.producedUnits > 0 ? 'good' : 'neutral'}
+          tone={completedCount > 0 ? 'good' : 'neutral'}
         />
         <StatTile
-          value={<bdi dir="ltr">{remaining.toLocaleString()}</bdi>}
-          label="נותרו לייצור"
+          value={<bdi dir="ltr">{(openCount + upcomingCount).toLocaleString()}</bdi>}
+          label="פתוחים / קרובים"
           icon={<IconGear size={64} />}
-          tone={remaining > 0 ? 'warn' : 'good'}
+          tone={openCount > 0 ? 'warn' : 'neutral'}
         />
       </div>
 
@@ -335,32 +386,36 @@ export default function ProductionDashboard({ user }: Props) {
           ACTIVE / WAITING PLANS LIST
           ===================================================================== */}
 
-      {(data.active.length > 0 || data.waiting.length > 0) && (
+      {(data.open.length > 0 || data.upcoming.length > 0) && (
         <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
-          <h3 className="text-sm font-bold mb-3 opacity-80">תוכניות הייצור הפעילות</h3>
+          <h3 className="text-sm font-bold mb-3 opacity-80">ייצור פתוח וקרוב</h3>
           <div className="space-y-2">
-            {[...data.active, ...data.waiting].map(pl => (
-              <button key={pl.planId} onClick={() => router.push('/production')}
-                className="w-full p-3 rounded-xl text-start transition-all flex items-center gap-3"
-                style={{ background: 'var(--ht-surface-container)' }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--ht-info-bg)')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--ht-surface-container)')}>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ background: isWaiting(pl.status) ? 'var(--ht-warning)' : 'var(--ht-accent)', color: '#fff' }}>
-                  {isWaiting(pl.status) ? <IconClock size={16} /> : <IconProduction size={16} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold truncate" style={{ color: 'var(--ht-primary)' }}>{pl.label}</p>
-                  <p className="text-xs opacity-60 truncate">
-                    <bdi dir="ltr">{pl.plannedUnits.toLocaleString()}</bdi> פיתות
-                    {pl.producedUnits > 0 && <> · <bdi dir="ltr">{pl.producedUnits.toLocaleString()}</bdi> יוצרו</>}
-                  </p>
-                </div>
-                <span style={{ ...getStatusBadgeStyle(pl.status), fontSize: '10px', padding: '3px 10px' }}>
-                  {statusLabels[pl.status] || pl.status}
-                </span>
-              </button>
-            ))}
+            {[...data.open, ...data.upcoming].map(pl => {
+              const wait = pl.displayStatus === 'Waiting For Materials';
+              const planned = pl.displayStatus === 'Planned';
+              return (
+                <button key={pl.planId} onClick={() => router.push('/production')}
+                  className="w-full p-3 rounded-xl text-start transition-all flex items-center gap-3"
+                  style={{ background: 'var(--ht-surface-container)' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--ht-info-bg)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--ht-surface-container)')}>
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: wait ? 'var(--ht-warning)' : planned ? 'var(--ht-border)' : 'var(--ht-accent)', color: '#fff' }}>
+                    {wait ? <IconClock size={16} /> : <IconProduction size={16} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold truncate" style={{ color: 'var(--ht-primary)' }}>{pl.label}</p>
+                    <p className="text-xs opacity-60 truncate">
+                      <bdi dir="ltr">{pl.plannedUnits.toLocaleString()}</bdi> פיתות
+                      {pl.producedUnits > 0 && <> · <bdi dir="ltr">{pl.producedUnits.toLocaleString()}</bdi> יוצרו</>}
+                    </p>
+                  </div>
+                  <span style={{ ...getStatusBadgeStyle(pl.displayStatus), fontSize: '10px', padding: '3px 10px' }}>
+                    {statusLabels[pl.displayStatus] || pl.displayStatus}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -375,14 +430,14 @@ export default function ProductionDashboard({ user }: Props) {
           <span className="text-xs opacity-40">{data.recentPlans.length} תוכניות אחרונות</span>
         </div>
 
-        <WeekProgressBar produced={recentProduced} planned={recentPlanned} />
+        <NightsProgressBar done={recentDone} total={recentTotal} />
 
         <div className="grid grid-cols-7 gap-1.5 mt-4">
           {data.recentPlans.map((pl) => {
             const date = new Date(pl.planDate);
             const intensity = pl.plannedUnits === 0 ? 0 : Math.min(1, pl.plannedUnits / maxUnits);
-            const done = pl.status === 'Completed';
-            const wait = isWaiting(pl.status);
+            const done = pl.displayStatus === 'Completed';
+            const wait = pl.displayStatus === 'Waiting For Materials';
             const base = wait ? '218, 165, 85' : done ? '34, 197, 94' : '36, 86, 232';
             return (
               <div key={pl.planId} className="rounded-xl p-2.5 text-center"
@@ -411,25 +466,20 @@ export default function ProductionDashboard({ user }: Props) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
-          <CompletionRing
-            percent={data.stats.lifetime.completionRate}
-            produced={data.stats.lifetime.produced}
-            planned={data.stats.lifetime.planned}
-          />
+          <CompletionRing percent={planCompletion} done={completedCount} total={totalPlans} />
         </div>
 
         <div className="rounded-xl p-5 flex flex-col justify-between" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
-          <p className="text-xs opacity-50 font-bold">החודש הזה</p>
+          <p className="text-xs opacity-50 font-bold">נפח הייצור החודש</p>
           <div className="flex items-baseline gap-2 my-3">
             <span className="text-5xl font-bold tabular-nums" style={{ color: 'var(--ht-primary)' }}>
-              <bdi dir="ltr">{data.stats.month.produced.toLocaleString()}</bdi>
+              <bdi dir="ltr">{data.stats.month.planned.toLocaleString()}</bdi>
             </span>
-            <span className="text-lg opacity-40">/ <bdi dir="ltr">{data.stats.month.planned.toLocaleString()}</bdi></span>
-            <span className="text-sm opacity-60">פיתות</span>
+            <span className="text-sm opacity-60">פיתות מתוכננות</span>
           </div>
           <div className="flex items-center gap-2 text-xs opacity-60 pt-3" style={{ borderTop: '1px solid var(--ht-border)' }}>
             <IconCheck size={14} />
-            <span>{data.totals.completedCount} תוכניות הושלמו · {data.totals.activeCount} בייצור</span>
+            <span>{completedCount} ימי ייצור הושלמו · {openCount + upcomingCount} פתוחים/קרובים</span>
           </div>
         </div>
       </div>
