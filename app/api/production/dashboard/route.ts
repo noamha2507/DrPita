@@ -1,52 +1,14 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/db/supabase';
+import { israelToday, productionCycle, productionDisplayStatus, isCancelled } from '@/lib/productionStatus';
 
 // GET — production-worker home dashboard.
-// Production plans are shared across the bakery (not assigned per worker),
-// so this reflects the floor's production state.
-//
-// Business rule (from the domain): a production plan runs on the NIGHT OF its
-// plan_date — the night before delivery. Production is therefore a one-night
-// event, not an open-ended state. So the badge shown to the worker is derived
-// from plan_date relative to today, NOT taken verbatim from the stored status:
-//   plan_date in the future → "מתוכנן" (not produced yet)
-//   plan_date is today       → "בייצור" (running tonight)
-//   plan_date in the past     → its night passed → "הושלם"
-// Stored status still governs the WaitingForMaterials / Cancelled cases, and
-// the controllers / State diagram are unchanged — this is a presentation layer.
+// Production plans are shared across the bakery (not assigned per worker), so
+// this reflects the floor's production state. The displayed status follows the
+// production-night rule (see lib/productionStatus): only tonight's plan is
+// "בייצור"; future nights are "ממתין לייצור"; past nights are "הושלם".
 
 const dayNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-
-const isInProgress = (s: string) => s === 'In Progress' || s === 'InProgress';
-const isWaiting = (s: string) => s === 'Waiting For Materials' || s === 'WaitingForMaterials';
-const isCancelled = (s: string) => s === 'Cancelled';
-
-// Today's date in Israel time (Vercel runs in UTC), as 'YYYY-MM-DD' for safe
-// lexical comparison with the stored plan_date strings.
-function israelToday(): string {
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
-}
-
-// Where a plan sits relative to its production night.
-function cycleOf(planDate: string, today: string): 'past' | 'today' | 'future' {
-  const d = (planDate || '').slice(0, 10);
-  if (d < today) return 'past';
-  if (d > today) return 'future';
-  return 'today';
-}
-
-// Display status derived from the production-night rule.
-function displayStatusOf(dbStatus: string, cycle: 'past' | 'today' | 'future'): string {
-  if (isCancelled(dbStatus)) return 'Cancelled';
-  if (isWaiting(dbStatus)) return 'Waiting For Materials';
-  if (dbStatus === 'Completed') return 'Completed';
-  if (isInProgress(dbStatus)) {
-    if (cycle === 'future') return 'Planned';
-    if (cycle === 'today') return 'In Progress';
-    return 'Completed'; // past production night → its run is over
-  }
-  return dbStatus;
-}
 
 export async function GET() {
   try {
@@ -76,10 +38,10 @@ export async function GET() {
       const date = new Date(pl.plan_date);
       const dayName = dayNames[date.getDay()];
       const dateStr = date.toLocaleDateString('he-IL', { day: 'numeric', month: 'long' });
-      const cycle = cycleOf(pl.plan_date, today);
+      const cycle = productionCycle(pl.plan_date, today);
       return {
         planId: pl.plan_id, status: pl.status, planDate: pl.plan_date, createdAt: pl.created_at,
-        cycle, displayStatus: displayStatusOf(pl.status, cycle),
+        cycle, displayStatus: productionDisplayStatus(pl.status, cycle),
         label: `יום ${dayName}, ${dateStr}`,
         plannedUnits: agg.planned, producedUnits: agg.produced, itemCount: agg.count,
         products: agg.products,
@@ -94,7 +56,7 @@ export async function GET() {
     // still waiting for materials. Past nights are no longer open.
     const openTonightProd = rows.filter(r => r.displayStatus === 'In Progress');
     const openWaiting = rows.filter(r => r.displayStatus === 'Waiting For Materials' && r.cycle !== 'past');
-    const upcoming = rows.filter(r => r.displayStatus === 'Planned').sort(byDateAsc);
+    const upcoming = rows.filter(r => r.displayStatus === 'AwaitingProduction').sort(byDateAsc);
     const open = [...openTonightProd, ...openWaiting];
 
     const completed = rows.filter(r => r.displayStatus === 'Completed').sort(byDateDesc);

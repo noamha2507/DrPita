@@ -49,6 +49,10 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
 
+  // ---- order list filter / search ----
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+
   // mode: 'new' = creation form, number = viewing an existing order
   const [mode, setMode] = useState<'new' | number>('new');
 
@@ -160,6 +164,22 @@ export default function OrdersPage() {
   const currentStep = !selectedCustomer ? 1 : items.length === 0 ? 2 : 3;
   const selectedOrder = typeof mode === 'number' ? orders.find((o: any) => (o.orderId || o.order_id) === mode) : null;
 
+  // Apply search (customer name / order number) + status filter to the list
+  const filteredOrders = orders.filter((o: any) => {
+    if (statusFilter !== 'all' && o.status !== statusFilter) return false;
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    const oid = String(o.orderId || o.order_id || '');
+    return (o.businessName || '').toLowerCase().includes(q) || oid.includes(q.replace('#', ''));
+  });
+  const statusFilters = [
+    { k: 'all', l: 'הכל' },
+    { k: 'Approved', l: 'מאושרת' },
+    { k: 'Delivered', l: 'נמסרה' },
+    { k: 'Rejected', l: 'נדחתה' },
+    { k: 'Draft', l: 'טיוטה' },
+  ];
+
   return (
     <div className="min-h-screen" style={{ background: 'var(--ht-surface-container)' }}>
       <AppHeader title="ד״ר פיתה — ניהול הזמנות" />
@@ -173,15 +193,53 @@ export default function OrdersPage() {
             <IconOrders size={16} /> הזמנה חדשה
           </button>
 
+          {/* ----- search + status filter ----- */}
+          <div className="space-y-2 px-0.5">
+            <div className="relative">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="חיפוש לפי לקוח או מס׳ הזמנה"
+                className="w-full ps-3 pe-8 py-2 rounded-lg text-sm outline-none transition-all"
+                style={{ background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)' }}
+                onFocus={(e) => (e.target.style.borderColor = 'var(--ht-accent)')}
+                onBlur={(e) => (e.target.style.borderColor = 'rgba(255,255,255,0.15)')}
+              />
+              {search && (
+                <button onClick={() => setSearch('')} aria-label="ניקוי חיפוש"
+                  className="absolute top-1/2 -translate-y-1/2 end-2 w-5 h-5 flex items-center justify-center rounded-full"
+                  style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}>
+                  <IconX size={11} />
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {statusFilters.map(s => (
+                <button key={s.k} onClick={() => setStatusFilter(s.k)}
+                  className="px-2.5 py-1 rounded-full text-[11px] font-bold transition-all"
+                  style={{
+                    background: statusFilter === s.k ? '#fff' : 'rgba(255,255,255,0.08)',
+                    color: statusFilter === s.k ? 'var(--ht-accent)' : 'rgba(255,255,255,0.6)',
+                  }}>
+                  {s.l}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <p className="text-xs font-bold px-2 pt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
-            הזמנות אחרונות ({orders.length})
+            {filteredOrders.length === orders.length
+              ? `הזמנות (${orders.length})`
+              : `${filteredOrders.length} מתוך ${orders.length} הזמנות`}
           </p>
 
           {pageLoading ? (
             <div className="text-center py-4"><div className="inline-block w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(255,255,255,0.2)', borderTopColor: '#fff' }}></div></div>
           ) : orders.length === 0 ? (
             <p className="text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.4)' }}>אין הזמנות עדיין</p>
-          ) : orders.map((o: any) => {
+          ) : filteredOrders.length === 0 ? (
+            <p className="text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.4)' }}>לא נמצאו הזמנות תואמות</p>
+          ) : filteredOrders.map((o: any) => {
             const oid = o.orderId || o.order_id;
             const isSel = mode === oid;
             return (

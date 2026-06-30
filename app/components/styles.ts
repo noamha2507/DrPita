@@ -77,6 +77,7 @@ export const statusBadge: Record<string, { color: string; bg: string }> = {
   'Waiting For Materials': { color: 'var(--ht-warning)', bg: 'var(--ht-warning-bg)' },
   'In Progress': { color: 'var(--ht-accent)', bg: 'var(--ht-info-bg)' },
   InProgress: { color: 'var(--ht-accent)', bg: 'var(--ht-info-bg)' },
+  AwaitingProduction: { color: '#6b7280', bg: '#f3f4f6' },
   Completed: { color: 'var(--ht-success)', bg: 'var(--ht-success-bg)' },
   Cancelled: { color: 'var(--ht-danger)', bg: 'var(--ht-danger-bg)' },
   // Delivery statuses

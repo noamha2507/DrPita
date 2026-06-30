@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/db/supabase';
+import { israelToday, productionCycle, productionDisplayStatus } from '@/lib/productionStatus';
 
 export async function GET() {
   try {
@@ -13,7 +14,7 @@ export async function GET() {
       supabase.from('orders').select('order_id, status, total_amount, created_at, customer_id'),
       supabase.from('orders').select('order_id, total_amount').eq('status', 'Delivered'),
       supabase.from('production_plans').select('plan_id, status, plan_date, created_at'),
-      supabase.from('production_plan_items').select('planned_quantity, produced_quantity, production_plans!inner(status)').in('production_plans.status', ['In Progress', 'InProgress']),
+      supabase.from('production_plan_items').select('planned_quantity, produced_quantity, production_plans!inner(plan_date)'),
       supabase.from('deliveries').select('delivery_id, status, driver_id'),
       supabase.from('delivery_notes').select('note_id'),
       // מים מוסתרים מתצוגת חומרי הגלם בדשבורד (מגיעים מהברז; נשארים ב-BOM לחישוב FR2)
@@ -36,13 +37,17 @@ export async function GET() {
     const totalRevenue = deliveredOrders.reduce((s, o: any) => s + (o.total_amount || 0), 0);
     const pendingRevenue = allOrders.filter(o => o.status === 'Approved').reduce((s, o: any) => s + (o.total_amount || 0), 0);
 
-    // FR2: Production KPIs — units from IN-PROGRESS plans only (consistency fix)
-    const inProgressPlans = allPlans.filter(p => p.status === 'In Progress' || p.status === 'InProgress').length;
-    const waitingPlans = allPlans.filter(p => p.status === 'Waiting For Materials').length;
-    const completedPlans = allPlans.filter(p => p.status === 'Completed').length;
-    const activePlanItems = planItemsRes.data || [];
-    const plannedUnits = activePlanItems.reduce((s, i: any) => s + (i.planned_quantity || 0), 0);
-    const producedUnits = activePlanItems.reduce((s, i: any) => s + (i.produced_quantity || 0), 0);
+    // FR2: Production KPIs — derived by the production-night rule, so only
+    // tonight's plan is "בייצור"; future nights are "ממתין לייצור"; past = "הושלם".
+    const today = israelToday();
+    const planDisplay = allPlans.map(p => productionDisplayStatus(p.status, productionCycle(p.plan_date, today)));
+    const inProductionTonight = planDisplay.filter(s => s === 'In Progress').length;
+    const awaitingProduction = planDisplay.filter(s => s === 'AwaitingProduction' || s === 'Waiting For Materials').length;
+    const completedPlans = planDisplay.filter(s => s === 'Completed').length;
+    // Units for the hero "כמה ייצרנו היום" — tonight's plan only.
+    const tonightItems = (planItemsRes.data || []).filter((i: any) => (i.production_plans?.plan_date || '').slice(0, 10) === today);
+    const plannedUnits = tonightItems.reduce((s, i: any) => s + (i.planned_quantity || 0), 0);
+    const producedUnits = tonightItems.reduce((s, i: any) => s + (i.produced_quantity || 0), 0);
 
     // FR3: Delivery KPIs
     const onTheWay = allDeliveries.filter(d => d.status === 'On The Way').length;
@@ -105,7 +110,9 @@ export async function GET() {
       const dateStr = date.toLocaleDateString('he-IL', { day: 'numeric', month: 'long' });
       const label = `יום ${dayName}, ${dateStr}`;
       return {
-        planId: p.plan_id, planDate: p.plan_date, status: p.status, createdAt: p.created_at, label,
+        planId: p.plan_id, planDate: p.plan_date, status: p.status,
+        displayStatus: productionDisplayStatus(p.status, productionCycle(p.plan_date, today)),
+        createdAt: p.created_at, label,
         plannedQuantity: qtyByPlan[p.plan_id] || 0,
       };
     });
@@ -145,7 +152,7 @@ export async function GET() {
 
     return NextResponse.json({
       orders: { approvedOrders, rejectedOrders, deliveredOrders: deliveredOrderCount, totalRevenue, pendingRevenue, totalOrders: allOrders.length },
-      production: { inProgressPlans, waitingPlans, completedPlans, plannedUnits, producedUnits, totalPlans: allPlans.length },
+      production: { inProductionTonight, awaitingProduction, completedPlans, plannedUnits, producedUnits, totalPlans: allPlans.length },
       deliveries: { onTheWay, deliveredDeliveries, plannedDeliveries, deliveryNoteCount, totalDeliveries: allDeliveries.length },
       inventory: {
         totalMaterials: materials.length, lowStockCount: lowStock.length, warningStockCount: warningStock.length, activeAlertCount,

@@ -8,9 +8,10 @@ import { getStatusBadgeStyle } from '../components/styles';
 import { IconOrders, IconProduction, IconDelivery, IconInventory, IconCheck, IconX, IconGear, IconClock, IconRoute, IconCircleFull, IconAlertTriangle } from '../components/Icons';
 import DriverDashboard from '../components/DriverDashboard';
 import ProductionDashboard from '../components/ProductionDashboard';
+import WarehouseDashboard from '../components/WarehouseDashboard';
 
 const roleLabels: Record<string, string> = { Manager: 'מנהל', ProductionWorker: 'עובד ייצור', WarehouseWorker: 'מחסנאי', Driver: 'נהג' };
-const statusLabels: Record<string, string> = { Draft: 'טיוטה', Approved: 'מאושרת', Rejected: 'נדחתה', Delivered: 'נמסרה', 'In Progress': 'בייצור', InProgress: 'בייצור', 'Waiting For Materials': 'ממתין לחומרים', Completed: 'הושלם', Cancelled: 'בוטל', Planned: 'מתוכנן', 'On The Way': 'בדרך', Failed: 'נכשל' };
+const statusLabels: Record<string, string> = { Draft: 'טיוטה', Approved: 'מאושרת', Rejected: 'נדחתה', Delivered: 'נמסרה', 'In Progress': 'בייצור', InProgress: 'בייצור', AwaitingProduction: 'ממתין לייצור', 'Waiting For Materials': 'ממתין לחומרים', Completed: 'הושלם', Cancelled: 'בוטל', Planned: 'מתוכנן', 'On The Way': 'בדרך', Failed: 'נכשל' };
 
 // Supabase "timestamp without time zone" values arrive without a 'Z' but
 // are UTC — append 'Z' so they aren't misread as local time (UTC+3 in IL).
@@ -141,8 +142,8 @@ export default function DashboardPage() {
                   <IconProduction size={16} />
                   <h3 className="text-sm font-bold" style={{ color: 'var(--ht-primary)' }}>ייצור</h3>
                 </div>
-                <Kpi icon={<IconGear size={16} />} value={d.production.inProgressPlans} label="בייצור כעת" color="var(--ht-accent)" />
-                <Kpi icon={<IconClock size={16} />} value={d.production.waitingPlans} label="ממתין לחומרים" color={d.production.waitingPlans > 0 ? 'var(--ht-warning)' : '#999'} />
+                <Kpi icon={<IconGear size={16} />} value={d.production.inProductionTonight} label="בייצור הלילה" color="var(--ht-accent)" />
+                <Kpi icon={<IconClock size={16} />} value={d.production.awaitingProduction} label="ממתין לייצור" color={d.production.awaitingProduction > 0 ? 'var(--ht-warning)' : '#999'} />
                 <Kpi icon={<IconCheck size={16} />} value={d.production.completedPlans} label="הושלמו" color="var(--ht-success)" />
                 <div className="mt-2 pt-2 flex justify-between items-center" style={{ borderTop: '1px solid var(--ht-border)' }}>
                   <span className="text-xs opacity-50">סה״כ תוכניות</span>
@@ -252,7 +253,7 @@ export default function DashboardPage() {
                       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-sm font-medium truncate flex-1 min-w-0">{p.label}</span>
-                        <span style={{ ...getStatusBadgeStyle(p.status), fontSize: '10px', padding: '1px 7px' }}>{statusLabels[p.status] || p.status}</span>
+                        <span style={{ ...getStatusBadgeStyle(p.displayStatus || p.status), fontSize: '10px', padding: '1px 7px' }}>{statusLabels[p.displayStatus || p.status] || p.status}</span>
                       </div>
                       <div className="flex items-center gap-1.5 mt-1">
                         <IconProduction size={11} className="opacity-40" />
@@ -316,8 +317,13 @@ export default function DashboardPage() {
           <ProductionDashboard user={user} />
         )}
 
-        {/* Remaining roles (e.g. warehouse) — placeholder welcome */}
-        {user.role !== 'Manager' && user.role !== 'Driver' && user.role !== 'ProductionWorker' && (
+        {/* Warehouse worker — inventory-focused dashboard */}
+        {user.role === 'WarehouseWorker' && (
+          <WarehouseDashboard user={user} />
+        )}
+
+        {/* Any remaining role — placeholder welcome */}
+        {user.role !== 'Manager' && user.role !== 'Driver' && user.role !== 'ProductionWorker' && user.role !== 'WarehouseWorker' && (
           <div className="p-8 rounded-xl text-center flex flex-col items-center" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
             <Logo size={56} light={false} />
             <p className="text-lg font-bold mt-3" style={{ color: 'var(--ht-primary)' }}>{greeting}, {roleLabels[user.role]}</p>

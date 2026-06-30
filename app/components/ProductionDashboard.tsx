@@ -16,7 +16,7 @@ const statusLabels: Record<string, string> = {
   WaitingForMaterials: 'ממתין לחומרים',
   Completed: 'הושלם',
   Cancelled: 'בוטל',
-  Planned: 'מתוכנן',
+  AwaitingProduction: 'ממתין לייצור',
 };
 
 interface PlanRow {
@@ -123,26 +123,6 @@ function CompletionRing({ percent, done, total }: { percent: number; done: numbe
   );
 }
 
-function NightsProgressBar({ done, total }: { done: number; total: number }) {
-  const percent = total === 0 ? 0 : Math.round((done / total) * 100);
-  const color = percent >= 80 ? '#22c55e' : percent >= 50 ? 'var(--ht-accent)' : '#daa555';
-  return (
-    <div>
-      <div className="flex items-baseline justify-between mb-2">
-        <p className="text-xs opacity-60">לילות ייצור שהושלמו (אחרונים)</p>
-        <p className="text-sm font-bold tabular-nums">
-          <span style={{ color }}><bdi dir="ltr">{done}</bdi></span>
-          <span className="opacity-30"> / <bdi dir="ltr">{total}</bdi></span>
-        </p>
-      </div>
-      <div className="h-2.5 rounded-full overflow-hidden" style={{ background: 'var(--ht-border)' }}>
-        <div className="h-full rounded-full"
-          style={{ width: `${Math.max(percent, total === 0 ? 0 : 4)}%`, background: color, transition: 'width 1.2s ease-out' }}></div>
-      </div>
-    </div>
-  );
-}
-
 // ============================================================================
 // Main component
 // ============================================================================
@@ -175,14 +155,10 @@ export default function ProductionDashboard({ user }: Props) {
   const { focus, focusMaterials } = data;
   const remaining = focus ? Math.max(0, focus.plannedUnits - focus.producedUnits) : 0;
   const shortMaterials = focusMaterials.filter(m => !m.sufficient);
-  const maxUnits = Math.max(1, ...data.recentPlans.map(p => p.plannedUnits));
   const { openCount, upcomingCount, completedCount, totalPlans } = data.totals;
   // Lifecycle completion (production NIGHTS done), not produced_quantity — the
   // latter isn't tracked here, so a unit ratio would understate reality.
   const planCompletion = totalPlans > 0 ? Math.round((completedCount / totalPlans) * 100) : 0;
-  // Progress bar: how many of the recent nights are done.
-  const recentDone = data.recentPlans.filter(p => p.displayStatus === 'Completed').length;
-  const recentTotal = data.recentPlans.length;
 
   // Hero framing follows the production-night rule (see API): only tonight's run
   // is "בייצור". Future = upcoming, past = the last run that already happened.
@@ -392,7 +368,7 @@ export default function ProductionDashboard({ user }: Props) {
           <div className="space-y-2">
             {[...data.open, ...data.upcoming].map(pl => {
               const wait = pl.displayStatus === 'Waiting For Materials';
-              const planned = pl.displayStatus === 'Planned';
+              const planned = pl.displayStatus === 'AwaitingProduction';
               return (
                 <button key={pl.planId} onClick={() => router.push('/production')}
                   className="w-full p-3 rounded-xl text-start transition-all flex items-center gap-3"
@@ -419,46 +395,6 @@ export default function ProductionDashboard({ user }: Props) {
           </div>
         </div>
       )}
-
-      {/* =====================================================================
-          RECENT PRODUCTION STRIP — last plans, sized by planned volume
-          ===================================================================== */}
-
-      <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-bold opacity-80">הייצור האחרון</h3>
-          <span className="text-xs opacity-40">{data.recentPlans.length} תוכניות אחרונות</span>
-        </div>
-
-        <NightsProgressBar done={recentDone} total={recentTotal} />
-
-        <div className="grid grid-cols-7 gap-1.5 mt-4">
-          {data.recentPlans.map((pl) => {
-            const date = new Date(pl.planDate);
-            const intensity = pl.plannedUnits === 0 ? 0 : Math.min(1, pl.plannedUnits / maxUnits);
-            const done = pl.displayStatus === 'Completed';
-            const wait = pl.displayStatus === 'Waiting For Materials';
-            const base = wait ? '218, 165, 85' : done ? '34, 197, 94' : '36, 86, 232';
-            return (
-              <div key={pl.planId} className="rounded-xl p-2.5 text-center"
-                style={{
-                  background: `rgba(${base}, ${0.1 + intensity * 0.18})`,
-                  border: `1px solid rgba(${base}, 0.3)`,
-                  color: 'var(--ht-on-surface)',
-                }}>
-                <p className="text-[10px] font-medium opacity-70">{date.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })}</p>
-                <p className="text-base font-bold tabular-nums my-0.5"><bdi dir="ltr">{pl.plannedUnits.toLocaleString()}</bdi></p>
-                <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: `rgb(${base})` }}></span>
-              </div>
-            );
-          })}
-        </div>
-        <div className="flex items-center gap-4 mt-3 text-[10px] opacity-50">
-          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgb(36,86,232)' }}></span> בייצור</span>
-          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgb(34,197,94)' }}></span> הושלם</span>
-          <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgb(218,165,85)' }}></span> ממתין לחומרים</span>
-        </div>
-      </div>
 
       {/* =====================================================================
           COMPLETION RING + MONTH SUMMARY
