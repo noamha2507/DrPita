@@ -170,23 +170,29 @@ export default function InventoryPage() {
             </div>
           )}
 
-          {/* Production shortage alerts — synced from the production plan screen */}
+          {/* Production shortage alerts — synced from the production plan screen.
+              Single source of truth for this: clicking a row jumps to that
+              material's own page instead of also repeating the same alert there. */}
           {alerts.length > 0 && (
             <div className="rounded-xl p-4" style={{ background: 'var(--ht-danger-bg)', border: '1px solid var(--ht-danger)' }}>
-              <h3 className="font-bold text-sm mb-3 flex items-center gap-1.5" style={{ color: 'var(--ht-danger)' }}>
+              <h3 className="font-bold text-sm mb-1 flex items-center gap-1.5" style={{ color: 'var(--ht-danger)' }}>
                 <IconAlertTriangle size={16} /> חוסרים שעצרו תוכנית ייצור ({alerts.length})
               </h3>
+              <p className="text-xs opacity-60 mb-3">חומרי הגלם הבאים אינם מספיקים לתוכנית ייצור קרובה — יש להזמין מהספק</p>
               <div className="space-y-2">
                 {alerts.map(a => (
-                  <div key={a.alertId} className="flex items-center justify-between gap-3 p-3 rounded-lg" style={{ background: 'var(--ht-surface)' }}>
+                  <button key={a.alertId} onClick={() => setSelectedId(a.materialId)}
+                    className="w-full flex items-center justify-between gap-3 p-3 rounded-lg text-start transition-all"
+                    style={{ background: 'var(--ht-surface)', border: selectedId === a.materialId ? '1px solid var(--ht-danger)' : '1px solid transparent' }}>
                     <div>
                       <p className="text-sm font-bold" style={{ color: 'var(--ht-primary)' }}>{a.materialName}</p>
                       <p className="text-xs opacity-60 mt-0.5">{a.message}</p>
                     </div>
-                    <button onClick={() => resolveAlert(a.alertId)} className="btn-ghost px-3 py-1.5 text-xs shrink-0 whitespace-nowrap">
+                    <span onClick={(e) => { e.stopPropagation(); resolveAlert(a.alertId); }}
+                      className="btn-ghost px-3 py-1.5 text-xs shrink-0 whitespace-nowrap">
                       סמן כטופל
-                    </button>
-                  </div>
+                    </span>
+                  </button>
                 ))}
               </div>
             </div>
@@ -230,20 +236,6 @@ export default function InventoryPage() {
                     </div>
                   </div>
                 )}
-
-                {/* Production-plan shortage banner — this exact material blocked a plan */}
-                {alerts.filter(a => a.materialId === m.materialId).map(a => (
-                  <div key={a.alertId} className="p-4 rounded-xl flex items-center justify-between gap-3" style={{ background: 'var(--ht-warning-bg)', border: '1px solid var(--ht-warning)' }}>
-                    <div className="flex items-center gap-3">
-                      <span className="shrink-0" style={{ color: 'var(--ht-warning)' }}><IconAlertTriangle size={20} /></span>
-                      <div>
-                        <p className="font-bold text-sm" style={{ color: 'var(--ht-warning)' }}>עצר תוכנית ייצור</p>
-                        <p className="text-xs opacity-70 mt-0.5">{a.message}</p>
-                      </div>
-                    </div>
-                    <button onClick={() => resolveAlert(a.alertId)} className="btn-ghost px-3 py-1.5 text-xs shrink-0 whitespace-nowrap">סמן כטופל</button>
-                  </div>
-                ))}
 
                 {/* KPI cards */}
                 <div className="grid grid-cols-3 gap-3">

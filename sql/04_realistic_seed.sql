@@ -267,9 +267,11 @@ INSERT INTO delivery_notes (delivery_id, created_at, digital_signature, sent_to_
 -- =============================================
 -- STEP 15: INVENTORY ALERTS
 -- =============================================
-INSERT INTO inventory_alerts (material_id, created_at, alert_message, alert_status) VALUES
-  (1, NOW() - INTERVAL '2 hours', 'מלאי קמח לבן מתקרב לסף מינימום (480 ק״ג מתוך 100 ק״ג מינימום)', 'New'),
-  (5, NOW() - INTERVAL '1 hour',  'מלאי שמן זית נמוך (35 ליטר מתוך 10 ליטר מינימום)',                'New');
+-- None seeded — these are now created for real by
+-- AutoAssignmentService.createShortageAlerts() whenever a production plan
+-- actually can't proceed for lack of stock, so a hardcoded demo row here
+-- would just sit stale and contradict the real (usually healthy) seeded
+-- stock levels.
 
 -- =============================================
 -- VERIFICATION
