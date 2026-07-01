@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
+const GOLD = '#e0a85a';
+
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -35,163 +37,165 @@ export default function LoginPage() {
     setPassword('1234');
   };
 
+  const demoUsers = [
+    { name: 'avi', role: 'מנהל' },
+    { name: 'mohamad', role: 'נהג' },
+    { name: 'ahmad', role: 'ייצור' },
+    { name: 'ronen', role: 'מחסנאי' },
+  ];
+
   return (
-    <div className="min-h-screen relative overflow-hidden" style={{ background: 'var(--ht-primary)' }}>
+    <div className="min-h-screen relative overflow-hidden flex flex-col" style={{ background: '#081528' }}>
 
-      {/* Background illustration layer */}
+      {/* ===== Background layers ===== */}
       <div className="absolute inset-0">
-        {/* Gradient overlay */}
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, var(--ht-primary) 0%, #0f2a50 40%, #1a3a6b 70%, #152d4f 100%)' }}></div>
-
-        {/* Decorative shapes — bakery themed abstract */}
-        <svg className="absolute inset-0 w-full h-full opacity-[0.04]" viewBox="0 0 1440 900" fill="none">
-          {/* Large pita circles */}
-          <circle cx="200" cy="450" r="280" stroke="white" strokeWidth="1" />
-          <circle cx="200" cy="450" r="220" stroke="white" strokeWidth="0.5" />
-          <circle cx="200" cy="450" r="160" stroke="white" strokeWidth="0.5" />
-          {/* Wheat stalks */}
-          <path d="M100 800 Q150 700 130 600 Q180 650 160 550 Q210 600 190 500" stroke="white" strokeWidth="1.5" fill="none" />
-          <path d="M500 850 Q520 750 510 650 Q550 700 530 600" stroke="white" strokeWidth="1" fill="none" />
-          {/* Factory silhouette */}
-          <rect x="300" y="600" width="60" height="150" fill="white" opacity="0.3" />
-          <rect x="380" y="650" width="40" height="100" fill="white" opacity="0.2" />
-          <rect x="310" y="560" width="15" height="60" fill="white" opacity="0.3" />
-          {/* Rolling hills */}
-          <path d="M0 750 Q200 680 400 720 Q600 760 800 700 Q1000 640 1200 710 Q1400 780 1440 750 L1440 900 L0 900Z" fill="white" opacity="0.02" />
+        {/* deep navy, warmed toward the emblem (right, RTL) */}
+        <div className="absolute inset-0" style={{
+          background: 'radial-gradient(1100px 760px at 74% 44%, #17325a 0%, #0e2445 42%, #081528 100%)',
+        }} />
+        {/* warm gold halo behind the emblem */}
+        <div className="absolute rounded-full blur-3xl" style={{
+          width: 620, height: 620, top: '14%', right: '6%',
+          background: 'radial-gradient(circle, rgba(224,168,90,0.20) 0%, rgba(224,168,90,0.06) 42%, transparent 70%)',
+        }} />
+        {/* faint concentric rings centered on the emblem */}
+        <svg className="absolute hidden lg:block" style={{ top: '-8%', right: '2%', width: 760, height: 760, opacity: 0.06 }} viewBox="0 0 760 760" fill="none">
+          <circle cx="380" cy="380" r="360" stroke={GOLD} strokeWidth="1" />
+          <circle cx="380" cy="380" r="290" stroke="white" strokeWidth="0.5" />
+          <circle cx="380" cy="380" r="215" stroke={GOLD} strokeWidth="0.5" />
         </svg>
-
-        {/* Glow effects */}
-        <div className="absolute top-1/3 left-1/4 w-96 h-96 rounded-full blur-3xl" style={{ background: 'rgba(36,86,232,0.08)' }}></div>
-        <div className="absolute bottom-1/4 left-1/3 w-72 h-72 rounded-full blur-3xl" style={{ background: 'rgba(36,86,232,0.06)' }}></div>
+        {/* vignette for depth */}
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(circle at 50% 46%, transparent 52%, rgba(0,0,0,0.42) 100%)' }} />
       </div>
 
-      {/* Top nav bar */}
-      <div className="relative z-10 flex items-center justify-between px-8 py-4">
-        <div className="flex items-center gap-3">
-          <Image src="/logo-nobg.png" alt="ד״ר פיתה" width={44} height={44} className="object-contain" priority />
+      {/* ===== Top bar ===== */}
+      <header className="relative z-10 flex items-center justify-between px-6 md:px-10 py-5">
+        <div className="flex items-center gap-2.5">
+          <Image src="/logo-nobg.png" alt="ד״ר פיתה" width={399} height={466} className="w-9 h-auto object-contain" priority />
           <span className="text-lg font-bold text-white" style={{ fontFamily: 'var(--font-heebo), Heebo, sans-serif' }}>ד״ר פיתה</span>
         </div>
-        <div className="hidden md:flex items-center gap-6 text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
+        <div className="hidden md:flex items-center gap-3 text-xs" style={{ color: 'rgba(255,255,255,0.42)' }}>
           <span>מערכת ניהול המאפייה</span>
-          <span style={{ color: 'rgba(255,255,255,0.15)' }}>|</span>
+          <span style={{ color: 'rgba(224,168,90,0.5)' }}>•</span>
           <span>ניסיון של איכות, מסורת של טעם</span>
         </div>
-      </div>
+      </header>
 
-      {/* Main content */}
-      <div className="relative z-10 flex items-center justify-center px-6" style={{ minHeight: 'calc(100vh - 140px)' }}>
-        <div className="w-full max-w-5xl flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
+      {/* ===== Main ===== */}
+      <main className="relative z-10 flex-1 flex items-center justify-center px-6 py-4">
+        <div className="w-full max-w-5xl grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
 
-          {/* Left side — branding */}
-          <div className="flex-1 flex flex-col items-center lg:items-start">
-            {/* Logo with glow effect */}
-            <div className="relative mb-6">
-              <div className="absolute inset-0 rounded-full blur-2xl" style={{ background: 'rgba(218,175,90,0.15)', transform: 'scale(0.7)' }}></div>
-              <div className="lg:hidden relative">
-                <Image src="/logo-nobg.png" alt="ד״ר פיתה" width={200} height={200} className="object-contain relative z-10" priority />
-              </div>
-              <div className="hidden lg:block relative">
-                <Image src="/logo-nobg.png" alt="ד״ר פיתה" width={280} height={280} className="object-contain relative z-10" priority />
-              </div>
+          {/* Branding — the emblem */}
+          <div className="flex flex-col items-center text-center">
+            <div className="relative mb-3">
+              {/* soft gold glow so the emblem reads as premium, not pasted */}
+              <div className="absolute inset-0 rounded-full blur-2xl" style={{
+                background: 'radial-gradient(circle, rgba(224,168,90,0.30) 0%, transparent 62%)',
+                transform: 'scale(0.9)',
+              }} />
+              <Image src="/logo-nobg.png" alt="ד״ר פיתה" width={399} height={466} priority
+                className="relative z-10 w-56 lg:w-[19rem] h-auto object-contain"
+                style={{ filter: 'drop-shadow(0 14px 34px rgba(0,0,0,0.55))' }} />
             </div>
 
-            {/* Tagline */}
-            <h1 className="text-3xl lg:text-5xl font-bold text-white leading-tight text-center lg:text-start"
-              style={{ fontFamily: 'var(--font-heebo), Heebo, sans-serif', textShadow: '0 2px 20px rgba(0,0,0,0.3)' }}>
+            <h1 className="text-3xl lg:text-[2.6rem] font-extrabold text-white leading-[1.15]"
+              style={{ fontFamily: 'var(--font-heebo), Heebo, sans-serif', textShadow: '0 2px 24px rgba(0,0,0,0.35)' }}>
               פיתות טריות
               <br />
-              <span style={{ color: 'rgba(218,175,90,0.9)' }}>כל יום, בכל מקום</span>
+              <span style={{ color: GOLD }}>כל יום, בכל מקום</span>
             </h1>
-            <p className="mt-4 text-base lg:text-lg text-center lg:text-start max-w-md" style={{ color: 'rgba(255,255,255,0.45)', lineHeight: '1.7' }}>
+            <p className="mt-4 text-sm lg:text-base max-w-md" style={{ color: 'rgba(255,255,255,0.5)', lineHeight: 1.7 }}>
               מערכת ד״ר פיתה מנהלת את כל שרשרת האספקה — מקליטת ההזמנה, דרך תכנון הייצור, ועד המשלוח ללקוח.
             </p>
+
+            {/* small gold divider */}
+            <div className="mt-5 h-px w-24" style={{ background: `linear-gradient(90deg, transparent, ${GOLD}, transparent)` }} />
           </div>
 
-          {/* Right side — login card */}
-          <div className="w-full max-w-sm">
-            <div className="rounded-2xl p-7" style={{ background: 'var(--ht-surface)', boxShadow: '0 25px 60px rgba(0,0,0,0.3)' }}>
-              <h2 className="text-xl font-bold mb-1" style={{ color: 'var(--ht-primary)' }}>שלום, ברוך הבא</h2>
-              <p className="text-sm mb-6 opacity-50">יש להזדהות כדי להיכנס למערכת</p>
+          {/* Login card */}
+          <div className="w-full max-w-sm mx-auto">
+            <div className="rounded-2xl overflow-hidden" style={{ boxShadow: '0 30px 70px rgba(0,0,0,0.45)' }}>
+              {/* gold accent strip */}
+              <div className="h-1.5" style={{ background: `linear-gradient(90deg, ${GOLD}, #c98a3a)` }} />
+              <div className="p-7" style={{ background: 'var(--ht-surface)' }}>
+                <h2 className="text-xl font-bold mb-1" style={{ color: 'var(--ht-primary)' }}>שלום, ברוך הבא</h2>
+                <p className="text-sm mb-6 opacity-50">יש להזדהות כדי להיכנס למערכת</p>
 
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <label htmlFor="username" className="block text-sm font-medium mb-1" style={{ color: 'var(--ht-on-surface)' }}>שם משתמש</label>
-                  <input id="username" type="text" value={username} onChange={(e) => setUsername(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl text-sm transition-all"
-                    style={{ background: 'var(--ht-surface-container)', border: '1.5px solid var(--ht-border)', color: 'var(--ht-on-surface)', textAlign: 'right' }}
-                    onFocus={(e) => { e.target.style.borderColor = 'var(--ht-accent)'; e.target.style.boxShadow = '0 0 0 3px var(--ht-accent-soft)'; }}
-                    onBlur={(e) => { e.target.style.borderColor = 'var(--ht-border)'; e.target.style.boxShadow = 'none'; }}
-                    placeholder="הזינו שם משתמש" required autoComplete="username" />
-                </div>
-
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium mb-1" style={{ color: 'var(--ht-on-surface)' }}>סיסמה</label>
-                  <div className="relative">
-                    <input id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pe-16 px-4 py-2.5 rounded-xl text-sm transition-all"
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div>
+                    <label htmlFor="username" className="block text-sm font-medium mb-1" style={{ color: 'var(--ht-on-surface)' }}>שם משתמש</label>
+                    <input id="username" type="text" value={username} onChange={(e) => setUsername(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl text-sm transition-all"
                       style={{ background: 'var(--ht-surface-container)', border: '1.5px solid var(--ht-border)', color: 'var(--ht-on-surface)', textAlign: 'right' }}
                       onFocus={(e) => { e.target.style.borderColor = 'var(--ht-accent)'; e.target.style.boxShadow = '0 0 0 3px var(--ht-accent-soft)'; }}
                       onBlur={(e) => { e.target.style.borderColor = 'var(--ht-border)'; e.target.style.boxShadow = 'none'; }}
-                      placeholder="הזינו סיסמה" required autoComplete="current-password" />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)}
-                      className="absolute top-1/2 left-3 -translate-y-1/2 text-xs px-2 py-0.5 rounded"
-                      style={{ color: 'var(--ht-accent)', background: 'var(--ht-surface)' }}>
-                      {showPassword ? 'הסתר' : 'הצג'}
-                    </button>
+                      placeholder="הזינו שם משתמש" required autoComplete="username" />
                   </div>
-                </div>
 
-                {error && (
-                  <div className="px-3 py-2 rounded-xl text-sm" style={{ background: 'var(--ht-danger-bg)', color: 'var(--ht-danger)' }}>
-                    {error}
+                  <div>
+                    <label htmlFor="password" className="block text-sm font-medium mb-1" style={{ color: 'var(--ht-on-surface)' }}>סיסמה</label>
+                    <div className="relative">
+                      <input id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
+                        className="w-full pe-16 px-4 py-2.5 rounded-xl text-sm transition-all"
+                        style={{ background: 'var(--ht-surface-container)', border: '1.5px solid var(--ht-border)', color: 'var(--ht-on-surface)', textAlign: 'right' }}
+                        onFocus={(e) => { e.target.style.borderColor = 'var(--ht-accent)'; e.target.style.boxShadow = '0 0 0 3px var(--ht-accent-soft)'; }}
+                        onBlur={(e) => { e.target.style.borderColor = 'var(--ht-border)'; e.target.style.boxShadow = 'none'; }}
+                        placeholder="הזינו סיסמה" required autoComplete="current-password" />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)}
+                        className="absolute top-1/2 left-3 -translate-y-1/2 text-xs px-2 py-0.5 rounded"
+                        style={{ color: 'var(--ht-accent)', background: 'var(--ht-surface)' }}>
+                        {showPassword ? 'הסתר' : 'הצג'}
+                      </button>
+                    </div>
                   </div>
-                )}
 
-                <button type="submit" disabled={loading}
-                  className="w-full font-bold py-3 rounded-xl transition-all disabled:opacity-50 text-sm flex items-center justify-center gap-2 btn-primary">
-                  {loading ? (
-                    <>
-                      <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                      מתחבר...
-                    </>
-                  ) : (
-                    <>כניסה למערכת <span className="opacity-60">←</span></>
+                  {error && (
+                    <div className="px-3 py-2 rounded-xl text-sm" style={{ background: 'var(--ht-danger-bg)', color: 'var(--ht-danger)' }}>
+                      {error}
+                    </div>
                   )}
-                </button>
-              </form>
 
-              {/* Quick login */}
-              <div className="mt-5 pt-4" style={{ borderTop: '1px solid var(--ht-border)' }}>
-                <p className="text-xs text-center opacity-40 mb-2.5">כניסה מהירה לדמו</p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {[
-                    { name: 'avi', role: 'מנהל' },
-                    { name: 'mohamad', role: 'נהג' },
-                    { name: 'ahmad', role: 'ייצור' },
-                    { name: 'ronen', role: 'מחסנאי' },
-                  ].map(u => (
-                    <button key={u.name} onClick={() => quickLogin(u.name)}
-                      className="py-2 px-2.5 rounded-lg text-xs transition-all text-start"
-                      style={{ background: 'var(--ht-surface-container)', border: '1px solid transparent' }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--ht-accent)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent'; }}>
-                      <span className="font-bold" dir="ltr">{u.name}</span>
-                      <span className="opacity-40 me-1"> — {u.role}</span>
-                    </button>
-                  ))}
+                  <button type="submit" disabled={loading}
+                    className="w-full font-bold py-3 rounded-xl transition-all disabled:opacity-50 text-sm flex items-center justify-center gap-2 btn-primary">
+                    {loading ? (
+                      <>
+                        <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        מתחבר...
+                      </>
+                    ) : (
+                      <>כניסה למערכת <span className="opacity-60">←</span></>
+                    )}
+                  </button>
+                </form>
+
+                {/* Quick login */}
+                <div className="mt-5 pt-4" style={{ borderTop: '1px solid var(--ht-border)' }}>
+                  <p className="text-xs text-center opacity-40 mb-2.5">כניסה מהירה לדמו</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {demoUsers.map(u => (
+                      <button key={u.name} onClick={() => quickLogin(u.name)}
+                        className="py-2 px-2.5 rounded-lg text-xs transition-all text-start"
+                        style={{ background: 'var(--ht-surface-container)', border: '1px solid transparent' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--ht-accent)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'transparent'; }}>
+                        <span className="font-bold" dir="ltr">{u.name}</span>
+                        <span className="opacity-40 me-1"> — {u.role}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-center opacity-25 mt-2">סיסמה: <span dir="ltr">1234</span></p>
                 </div>
-                <p className="text-[10px] text-center opacity-25 mt-2">סיסמה: <span dir="ltr">1234</span></p>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </main>
 
-      {/* Bottom bar */}
-      <div className="relative z-10 flex items-center justify-between px-8 py-4 text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
+      {/* ===== Bottom bar ===== */}
+      <footer className="relative z-10 flex items-center justify-between px-6 md:px-10 py-4 text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>
         <span>© 2026 ד״ר פיתה — מערכת ניהול המאפייה</span>
         <span>מאז 1998</span>
-      </div>
+      </footer>
     </div>
   );
 }
