@@ -131,6 +131,7 @@ export default function OrdersPage() {
 
   const handleCreateCustomer = async () => {
     if (!newCustForm.businessName.trim() || !newCustForm.phone.trim()) { setNewCustError('שם העסק וטלפון הם שדות חובה'); return; }
+    if (!/^0\d{9}$/.test(newCustForm.phone.replace(/\D/g, ''))) { setNewCustError('מספר טלפון לא תקין — יש להזין 10 ספרות המתחילות ב-0'); return; }
     setNewCustLoading(true); setNewCustError('');
     try {
       const res = await fetch('/api/customers', {
@@ -507,7 +508,15 @@ export default function OrdersPage() {
                 <div key={f.k}>
                   <label className="block text-sm font-medium mb-1">{f.label}</label>
                   <input type={f.k === 'creditLimit' ? 'number' : 'text'} value={(newCustForm as any)[f.k]}
-                    onChange={(e) => setNewCustForm({ ...newCustForm, [f.k]: e.target.value })}
+                    onChange={(e) => {
+                      let v = e.target.value;
+                      if (f.k === 'phone') {
+                        v = v.replace(/\D/g, '').slice(0, 10);
+                        if (v.length > 3) v = v.slice(0, 3) + '-' + v.slice(3);
+                      }
+                      setNewCustForm({ ...newCustForm, [f.k]: v });
+                    }}
+                    inputMode={f.k === 'phone' ? 'tel' : undefined}
                     className="w-full px-4 py-2.5 outline-none transition-all" style={input} placeholder={f.ph} dir={f.dir as any}
                     onFocus={(e) => Object.assign(e.target.style, inputFocus)} onBlur={(e) => Object.assign(e.target.style, inputBlur)} />
                 </div>
