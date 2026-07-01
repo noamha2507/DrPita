@@ -194,12 +194,6 @@ export default function LoginPage() {
 
           <h2 className="text-xl md:text-2xl font-extrabold text-white text-center leading-snug">כל שרשרת האספקה, במקום אחד</h2>
           <p className="text-sm text-white text-center mt-2 max-w-xs" style={{ opacity: 0.8 }}>מקליטת ההזמנה, דרך תכנון הייצור, ועד המשלוח ללקוח.</p>
-
-          <div className="flex items-center gap-1.5 mt-8">
-            <span className="w-1.5 h-1.5 rounded-full bg-white" />
-            <span className="w-1.5 h-1.5 rounded-full bg-white" style={{ opacity: 0.4 }} />
-            <span className="w-1.5 h-1.5 rounded-full bg-white" style={{ opacity: 0.4 }} />
-          </div>
         </div>
       </div>
     </div>
