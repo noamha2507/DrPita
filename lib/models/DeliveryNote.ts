@@ -4,6 +4,8 @@ import { supabase } from '../db/supabase';
 export class DeliveryNote {
   noteId: number;
   deliveryId: number;
+  orderId: number | null;
+  signerName: string | null;
   createdAt: string;
   digitalSignature: string | null;
   sentToEmail: boolean;
@@ -11,6 +13,8 @@ export class DeliveryNote {
   constructor(data: Partial<DeliveryNote> & { noteId: number }) {
     this.noteId = data.noteId;
     this.deliveryId = data.deliveryId || 0;
+    this.orderId = data.orderId ?? null;
+    this.signerName = data.signerName ?? null;
     this.createdAt = data.createdAt || new Date().toISOString();
     this.digitalSignature = data.digitalSignature || null;
     this.sentToEmail = data.sentToEmail ?? false;
@@ -21,12 +25,16 @@ export class DeliveryNote {
     return `delivery_note_${this.noteId}.pdf`;
   }
 
-  // SD3 message #9: createDeliveryNote(deliveryId, signatureFile)
-  static async createDeliveryNote(deliveryId: number, signatureFile: string): Promise<number> {
+  // SD3 message #9: createDeliveryNote(deliveryId, signatureFile, orderId, signerName)
+  // Each business on the route signs its own note, so the note is tied to
+  // the specific order it was issued for (not just the whole route).
+  static async createDeliveryNote(deliveryId: number, signatureFile: string, orderId: number, signerName: string): Promise<number> {
     const { data, error } = await supabase
       .from('delivery_notes')
       .insert({
         delivery_id: deliveryId,
+        order_id: orderId,
+        signer_name: signerName,
         digital_signature: signatureFile,
         sent_to_email: false,
       })

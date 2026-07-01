@@ -3,24 +3,24 @@ import { DeliveryController } from '@/lib/controllers/DeliveryController';
 import { Delivery } from '@/lib/models/Delivery';
 import { supabase } from '@/lib/db/supabase';
 
+// POST — sign off delivery of a single order (one business on the route)
 export async function POST(request: NextRequest) {
   try {
-    const { deliveryId, signatureFile } = await request.json();
+    const { orderId, signatureFile, signerName } = await request.json();
 
-    if (!deliveryId || !signatureFile) {
-      return NextResponse.json({ error: 'נדרש מזהה משלוח וחתימה' }, { status: 400 });
+    if (!orderId || !signatureFile || !signerName?.trim()) {
+      return NextResponse.json({ error: 'נדרש מזהה הזמנה, שם חותם וחתימה' }, { status: 400 });
     }
 
-    // Same date guard as PATCH — closing a delivery is even more sensitive,
+    // Same date guard as PATCH — closing an order is even more sensitive,
     // it must only happen on the day the goods physically go out.
-    const { data: firstOrder } = await supabase
+    const { data: order } = await supabase
       .from('orders')
       .select('required_delivery_date')
-      .eq('delivery_id', deliveryId)
-      .limit(1)
+      .eq('order_id', orderId)
       .maybeSingle();
 
-    const requiredDate = (firstOrder as any)?.required_delivery_date?.substring(0, 10);
+    const requiredDate = (order as any)?.required_delivery_date?.substring(0, 10);
     if (requiredDate) {
       const today = new Date().toISOString().substring(0, 10);
       if (today < requiredDate) {
@@ -28,16 +28,16 @@ export async function POST(request: NextRequest) {
           weekday: 'long', day: 'numeric', month: 'long',
         });
         return NextResponse.json(
-          { error: `לא ניתן לסגור משלוח לפני יום האספקה (${display}).` },
+          { error: `לא ניתן לסגור הזמנה לפני יום האספקה (${display}).` },
           { status: 400 }
         );
       }
     }
 
-    const result = await DeliveryController.completeDelivery(deliveryId, signatureFile);
+    const result = await DeliveryController.completeOrderDelivery(orderId, signatureFile, signerName.trim());
     return NextResponse.json(result);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || 'שגיאה בסגירת המשלוח' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'שגיאה בסגירת ההזמנה' }, { status: 500 });
   }
 }
 

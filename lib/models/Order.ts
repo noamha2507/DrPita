@@ -56,6 +56,24 @@ export class Order {
     return data.order_id;
   }
 
+  static async findById(orderId: number): Promise<Order | null> {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('order_id', orderId)
+      .single();
+    if (error) return null;
+    return new Order({
+      orderId: data.order_id,
+      customerId: data.customer_id,
+      deliveryId: data.delivery_id,
+      orderDate: data.order_date,
+      requiredDeliveryDate: data.required_delivery_date,
+      status: data.status as OrderStatus,
+      totalAmount: data.total_amount,
+    });
+  }
+
   // SD3 message #5: getOrdersByDelivery(deliveryId)
   static async getOrdersByDelivery(deliveryId: number): Promise<Order[]> {
     const { data, error } = await supabase
