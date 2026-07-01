@@ -218,10 +218,6 @@ export default function DeliveryMap({ stops: inputStops, userRole, deliveryStatu
             </div>
           </div>
 
-          {routeData.isMock && (
-            <p className="text-xs text-center opacity-30 mb-2">נתוני מסלול משוערים (ללא Google Maps API)</p>
-          )}
-
           {/* Stops timeline — full customer details (this is the hover info, always visible) */}
           <div className="space-y-2">
             <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--ht-success-bg)', border: '1px solid var(--ht-border)' }}>
