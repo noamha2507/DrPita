@@ -54,13 +54,35 @@ export default function ReportsPage() {
     { key: 'production' as Tab, label: 'ייצור', desc: 'ביצועי עמידה ביעדים' },
   ];
 
+  const activeTabLabel = tabs.find(t => t.key === activeTab)?.label || '';
+  const hasData = (activeTab === 'summary' && summaryData) || (activeTab === 'sales' && salesData) || (activeTab === 'production' && productionData);
+
   return (
     <div className="min-h-screen" style={{ background: 'var(--ht-surface-container)' }}>
+      <style>{`@media print {
+        header, .print\\:hidden { display: none !important; }
+        body, main { background: #fff !important; }
+        a { text-decoration: none; }
+      }`}</style>
       <AppHeader title="ד״ר פיתה — דוחות ותובנות" />
       <main id="main-content" className="max-w-6xl mx-auto p-6 space-y-5">
 
-        {/* Tab navigation */}
-        <div className="flex gap-2">
+        {/* Print-only letterhead */}
+        <div className="hidden print:block mb-2">
+          <div className="flex items-center justify-between pb-3 mb-3" style={{ borderBottom: '2px solid #000' }}>
+            <div>
+              <h1 className="text-xl font-bold">ד״ר פיתה</h1>
+              <p className="text-xs opacity-60">מערכת ניהול המאפייה</p>
+            </div>
+            <div className="text-end text-xs">
+              <p className="font-bold">דוח {activeTabLabel}</p>
+              <p className="opacity-60">הופק בתאריך: <bdi dir="ltr">{new Date().toLocaleString('he-IL')}</bdi></p>
+            </div>
+          </div>
+        </div>
+
+        {/* Tab navigation + PDF export */}
+        <div className="flex gap-2 print:hidden">
           {tabs.map(tab => (
             <button key={tab.key} onClick={() => loadReport(tab.key)}
               className="px-5 py-3 rounded-xl text-sm transition-all flex-1 text-start"
@@ -73,6 +95,10 @@ export default function ReportsPage() {
               <p className="text-xs mt-0.5" style={{ opacity: activeTab === tab.key ? 0.8 : 0.4 }}>{tab.desc}</p>
             </button>
           ))}
+          <button onClick={() => window.print()} disabled={!hasData}
+            className="btn-primary px-5 py-3 text-sm shrink-0 disabled:opacity-40" style={{ alignSelf: 'stretch' }}>
+            ייצוא ל-PDF
+          </button>
         </div>
 
         {error && (
