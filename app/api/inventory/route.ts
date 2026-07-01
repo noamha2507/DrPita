@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/db/supabase';
+import { AutoAssignmentService } from '@/lib/services/AutoAssignmentService';
 
 // GET — list all raw materials with supplier info
 export async function GET() {
   try {
+    // Refresh today's/tomorrow's production-plan material status before
+    // reading alerts, so a shortage that emerged from stock changes (not a
+    // new order) still shows up here — not just a stale snapshot from
+    // whenever the plan was first created.
+    await AutoAssignmentService.recheckUpcomingShortages();
+
     const { data, error } = await supabase
       .from('raw_materials')
       .select('*, suppliers(supplier_name, phone)')

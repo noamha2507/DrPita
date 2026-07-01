@@ -197,6 +197,10 @@ export class AutoAssignmentService {
    * Looked up by material name since the shortage payload doesn't carry the id.
    * Uses InventoryAlert.createAlert() — an existing, previously-unwired class
    * diagram method — without touching ProductionController/FR2 at all.
+   *
+   * Skips materials that already have an unresolved ('New') alert, since this
+   * now also runs on every recheckUpcomingShortages() pass — without the
+   * guard, viewing the inventory screen twice would create duplicate alerts.
    */
   static async createShortageAlerts(
     productionDate: string,
@@ -204,11 +208,65 @@ export class AutoAssignmentService {
   ): Promise<void> {
     if (!missingMaterials || missingMaterials.length === 0) return;
     const { data: rawMaterials } = await supabase.from('raw_materials').select('material_id, material_name, unit');
+    const { data: openAlerts } = await supabase.from('inventory_alerts').select('material_id').eq('alert_status', 'New');
+    const materialsWithOpenAlert = new Set((openAlerts || []).map((a: any) => a.material_id));
     for (const m of missingMaterials) {
       const match = (rawMaterials || []).find((r: any) => r.material_name === m.materialName);
-      if (!match) continue;
+      if (!match || materialsWithOpenAlert.has(match.material_id)) continue;
       const message = `חוסר לתוכנית ייצור ${productionDate}: נדרש ${m.required} ${match.unit}, במלאי ${m.available} ${match.unit} (חוסר ${m.shortage} ${match.unit})`;
       await InventoryAlert.createAlert(match.material_id, message);
+    }
+  }
+
+  /**
+   * Re-verify material availability for the plan about to go into production
+   * (today — production runs tonight) and the one a day out (tomorrow — one
+   * day of lead time to reorder before it's blocked). Runs whenever the
+   * inventory screen is opened, since stock can change independently of any
+   * order event (restocked, or consumed by another plan) between when a plan
+   * was first created and its actual production night.
+   */
+  static async recheckUpcomingShortages(): Promise<void> {
+    const today = new Date().toISOString().split('T')[0];
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    for (const productionDate of [today, tomorrow]) {
+      try {
+        await AutoAssignmentService.recheckMaterialAvailability(productionDate);
+      } catch {
+        // non-fatal — one date's recheck failing shouldn't block the other or the page load
+      }
+    }
+  }
+
+  /**
+   * Re-checks stock for an existing plan's current items without touching
+   * the items themselves (those only change via a new/changed order) — just
+   * refreshes status + alerts against today's raw_materials quantities.
+   */
+  private static async recheckMaterialAvailability(productionDate: string): Promise<void> {
+    const plan = await ProductionPlan.findByDate(productionDate);
+    if (!plan || plan.status === 'Completed' || plan.status === 'Cancelled') return;
+
+    const { data: items } = await supabase
+      .from('production_plan_items')
+      .select('product_id, planned_quantity')
+      .eq('plan_id', plan.planId);
+    if (!items || items.length === 0) return;
+
+    const aggregatedItems = items.map((i: any) => ({ productId: i.product_id, quantity: i.planned_quantity }));
+    const requiredMaterials = await BillOfMaterials.getRequiredMaterials(aggregatedItems);
+    const currentStock = await RawMaterial.verifyPhysicalStock(requiredMaterials);
+    const allAvailable = currentStock.every(m => m.sufficient);
+
+    const newStatus = allAvailable ? 'In Progress' : 'Waiting For Materials';
+    if (newStatus !== plan.status) {
+      await supabase.from('production_plans').update({ status: newStatus }).eq('plan_id', plan.planId);
+    }
+    if (!allAvailable) {
+      const missingMaterials = currentStock.filter(m => !m.sufficient).map(m => ({
+        materialName: m.materialName, required: m.requiredQty, available: m.currentQty, shortage: m.requiredQty - m.currentQty,
+      }));
+      await AutoAssignmentService.createShortageAlerts(productionDate, missingMaterials);
     }
   }
 
