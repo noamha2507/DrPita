@@ -439,8 +439,11 @@ export default function DeliveryPage() {
                                 <td className="py-3 text-xs"><bdi dir="ltr">{stop.phone}</bdi></td>
                                 <td className="py-3 text-xs">#{stop.orderId}</td>
                                 <td className="py-3">
-                                  <span style={{ ...getStatusBadgeStyle(stop.orderStatus), fontSize: '10px', padding: '2px 8px' }}>
-                                    {stop.orderStatus === 'Approved' ? 'בדרך' : statusLabels[stop.orderStatus] || stop.orderStatus}
+                                  {/* An order sitting in an undelivered route is still just "Approved" —
+                                      the real stage to show is the delivery's own status (Planned/Assigned/
+                                      Loaded/On The Way), not an assumed "on the way". */}
+                                  <span style={{ ...getStatusBadgeStyle(stop.orderStatus === 'Delivered' ? 'Delivered' : detail.delivery.status), fontSize: '10px', padding: '2px 8px' }}>
+                                    {stop.orderStatus === 'Delivered' ? 'נמסר' : (statusLabels[detail.delivery.status] || detail.delivery.status)}
                                   </span>
                                 </td>
                               </tr>
