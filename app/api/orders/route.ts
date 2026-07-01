@@ -1,3 +1,6 @@
+// [API Route · FR1] הגשר בין ה-UI (app/orders/page.tsx) ל-Controller — זהו
+// החץ "UI -> Controller" שמופיע בתרשים ה-Sequence של FR1.
+// POST -> OrderController.processOrder() -> lib/controllers/OrderController.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { OrderController } from '@/lib/controllers/OrderController';
 import { AutoAssignmentService } from '@/lib/services/AutoAssignmentService';

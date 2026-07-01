@@ -1,5 +1,7 @@
 'use client';
 
+// [מסך UI · FR2 — תכנון ייצור] נקודת הכניסה של התרחיש: בחירת תאריך יעד ולחיצה
+// על "הפק תוכנית". autoGeneratePlan() -> POST /api/production -> app/api/production/route.ts
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AppHeader from '../components/AppHeader';

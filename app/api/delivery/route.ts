@@ -1,3 +1,6 @@
+// [API Route · FR3] הגשר בין ה-UI (app/delivery/page.tsx) ל-Controller —
+// החץ "UI -> Controller" שבתרשים ה-Sequence של FR3.
+// POST -> DeliveryController.completeDelivery() -> lib/controllers/DeliveryController.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { DeliveryController } from '@/lib/controllers/DeliveryController';
 import { Delivery } from '@/lib/models/Delivery';

@@ -3,7 +3,7 @@
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Logo from './Logo';
-import { IconHome, IconOrders, IconProduction, IconDelivery, IconInventory, IconReports, IconLogout } from './Icons';
+import { IconHome, IconOrders, IconProduction, IconDelivery, IconInventory, IconReports, IconLogout, IconAcademic } from './Icons';
 
 interface AppHeaderProps {
   title: string;
@@ -20,6 +20,7 @@ const toolbarLinks: Record<string, { href: string; label: string; Icon: React.FC
     { href: '/delivery', label: 'משלוחים', Icon: IconDelivery },
     { href: '/inventory', label: 'מלאי', Icon: IconInventory },
     { href: '/reports', label: 'דוחות', Icon: IconReports },
+    { href: '/traceability', label: 'עקיבות', Icon: IconAcademic },
   ],
   ProductionWorker: [
     { href: '/dashboard', label: 'ראשי', Icon: IconHome },

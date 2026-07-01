@@ -1,5 +1,7 @@
 'use client';
 
+// [מסך UI · FR3 — סגירת משלוח] נקודת הכניסה של התרחיש: טאב "חתימה ותעודת
+// משלוח", חתימת הלקוח. handleComplete() -> POST /api/delivery -> app/api/delivery/route.ts
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import AppHeader from '../components/AppHeader';

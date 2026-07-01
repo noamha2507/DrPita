@@ -1,3 +1,6 @@
+// [API Route · FR2] הגשר בין ה-UI (app/production/page.tsx) ל-Controller —
+// החץ "UI -> Controller" שבתרשים ה-Sequence של FR2.
+// POST -> ProductionController.generatePlan() -> lib/controllers/ProductionController.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { ProductionController } from '@/lib/controllers/ProductionController';
 import { ProductionPlan } from '@/lib/models/ProductionPlan';

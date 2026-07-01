@@ -1,5 +1,7 @@
 'use client';
 
+// [מסך UI · FR1 — קליטת הזמנה] נקודת הכניסה של התרחיש: בחירת לקוח + מוצרים,
+// ואז שליחה. handleSubmit() -> POST /api/orders -> app/api/orders/route.ts
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AppHeader from '../components/AppHeader';
