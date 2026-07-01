@@ -67,7 +67,7 @@ export default function LoginPage() {
                   <path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7" />
                 </svg>
                 <input id="username" type="text" value={username} onChange={(e) => setUsername(e.target.value)}
-                  className="w-full pe-11 px-4 py-2.5 rounded-xl text-sm transition-all"
+                  className="w-full ps-11 px-4 py-2.5 rounded-xl text-sm transition-all"
                   style={{ background: 'var(--ht-surface-container)', border: '1.5px solid var(--ht-border)', color: 'var(--ht-on-surface)', textAlign: 'right' }}
                   onFocus={(e) => { e.target.style.borderColor = 'var(--ht-accent)'; e.target.style.boxShadow = '0 0 0 3px var(--ht-accent-soft)'; }}
                   onBlur={(e) => { e.target.style.borderColor = 'var(--ht-border)'; e.target.style.boxShadow = 'none'; }}
