@@ -19,6 +19,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'שם העסק וטלפון הם שדות חובה' }, { status: 400 });
     }
 
+    // Duplicate check — same phone (compared by digits only, since existing
+    // records use a few different dash formats) means this business is
+    // already in the system.
+    const phoneDigits = String(phone).replace(/\D/g, '');
+    const { data: existingCustomers } = await supabase.from('customers').select('business_name, phone');
+    const duplicate = (existingCustomers || []).find((c: any) => (c.phone || '').replace(/\D/g, '') === phoneDigits);
+    if (duplicate) {
+      return NextResponse.json({ error: `כבר קיים לקוח עם מספר טלפון זה במערכת: ${duplicate.business_name}` }, { status: 409 });
+    }
+
     const { data, error } = await supabase
       .from('customers')
       .insert({
