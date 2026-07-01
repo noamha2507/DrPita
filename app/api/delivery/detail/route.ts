@@ -57,17 +57,6 @@ export async function GET(request: NextRequest) {
       orderCount: p.orderCount.size,
     }));
 
-    // Items per order — needed to print a delivery note for a single business
-    const itemsByOrder: Record<number, { productName: string; quantity: number; unitPrice: number }[]> = {};
-    for (const item of allItems) {
-      if (!itemsByOrder[item.order_id]) itemsByOrder[item.order_id] = [];
-      itemsByOrder[item.order_id].push({
-        productName: item.products?.product_name || `מוצר #${item.product_id}`,
-        quantity: item.quantity,
-        unitPrice: item.unit_price_at_sale,
-      });
-    }
-
     // 5. Build route stops from unique customers
     const stops = (orders || []).map((o: any, i: number) => ({
       stopNumber: i + 1,
@@ -118,15 +107,11 @@ export async function GET(request: NextRequest) {
         status: o.status,
         totalAmount: o.total_amount,
         requiredDate: o.required_delivery_date,
-        items: itemsByOrder[o.order_id] || [],
       })),
       stops,
       products,
       deliveryNotes: (notes || []).map((n: any) => ({
         noteId: n.note_id,
-        orderId: n.order_id,
-        signerName: n.signer_name,
-        digitalSignature: n.digital_signature,
         createdAt: n.created_at,
         sentToEmail: n.sent_to_email,
       })),

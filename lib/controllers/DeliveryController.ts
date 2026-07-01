@@ -4,50 +4,52 @@ import { DeliveryNote } from '../models/DeliveryNote';
 import { Customer } from '../models/Customer';
 import { EmailService } from '../models/EmailService';
 
-// [בקר · תרשים זרימה FR3] נקודת הכניסה לסגירת משלוח. A route stops at several
-// businesses, so each one is signed off and closed individually — completeOrderDelivery()
-// מממש את הודעות SD3: עדכון סטטוס הזמנה → תעודת משלוח → מייל ללקוח, ובודק אם כל ההזמנות
-// במשלוח נמסרו כדי לסגור את כל המסלול.
+// [בקר · תרשים זרימה FR3] נקודת הכניסה לסגירת משלוח. completeDelivery() מממש את הודעות SD3: פרטי משלוח → עדכון סטטוסים → תעודת משלוח → מייל ללקוח.
 export class DeliveryController {
-  // SD3 message #2: completeOrderDelivery(orderId, signatureFile, signerName)
-  static async completeOrderDelivery(
-    orderId: number,
-    signatureFile: string,
-    signerName: string
+  // SD3 message #2: completeDelivery(deliveryId, signatureFile)
+  static async completeDelivery(
+    deliveryId: number,
+    signatureFile: string
   ): Promise<{ success: boolean; deliveryNoteId?: number; error?: string }> {
-    const order = await Order.findById(orderId);
-    if (!order || !order.deliveryId) {
-      return { success: false, error: 'הזמנה לא נמצאה במשלוח' };
+    // SD3 message #3: getDeliveryDetails(deliveryId)
+    const deliveryDetails = await Delivery.getDeliveryDetails(deliveryId);
+    if (!deliveryDetails) {
+      return { success: false, error: 'משלוח לא נמצא' };
     }
 
-    // SD3 message #7: updateStatus(orderId, 'Delivered')
-    await Order.updateStatus(orderId, 'Delivered');
+    // SD3 message #5: getOrdersByDelivery(deliveryId)
+    const ordersList = await Order.getOrdersByDelivery(deliveryId);
 
-    // SD3 message #9: createDeliveryNote(deliveryId, signatureFile, orderId, signerName)
-    const deliveryNoteId = await DeliveryNote.createDeliveryNote(order.deliveryId, signatureFile, orderId, signerName);
+    // SD3: [Transaction BEGIN]
+    // SD3 message #6: updateStatus(deliveryId, 'Delivered')
+    await Delivery.updateStatus(deliveryId, 'Delivered');
 
-    // Once every business on the route has signed, the route itself is done.
-    const siblingOrders = await Order.getOrdersByDelivery(order.deliveryId);
-    const allDelivered = siblingOrders.every(o => o.orderId === orderId || o.status === 'Delivered');
-    if (allDelivered) {
-      await Delivery.updateStatus(order.deliveryId, 'Delivered');
+    // SD3 message #7-8: loop — updateStatus(orderId, 'Delivered') for each order
+    for (const order of ordersList) {
+      await Order.updateStatus(order.orderId, 'Delivered');
     }
 
-    // SD3: Async email process (non-blocking) — only to the customer that just signed
-    DeliveryController.sendOrderEmailAsync(orderId, deliveryNoteId).catch(err =>
+    // SD3 message #9: createDeliveryNote(deliveryId, signatureFile)
+    const deliveryNoteId = await DeliveryNote.createDeliveryNote(deliveryId, signatureFile);
+    // SD3: [Transaction COMMIT]
+
+    // SD3: Async email process (non-blocking)
+    DeliveryController.sendEmailAsync(deliveryId, deliveryNoteId).catch(err =>
       console.error('[DeliveryController] Async email failed:', err)
     );
 
     return { success: true, deliveryNoteId };
   }
 
-  private static async sendOrderEmailAsync(orderId: number, deliveryNoteId: number): Promise<void> {
-    const order = await Order.findById(orderId);
-    const customer = order ? await Customer.findById(order.customerId) : null;
-    if (customer?.email) {
-      // SD3 message #11: sendDeliveryNotePDF(customerEmail, deliveryNoteId)
-      await EmailService.sendDeliveryNotePDF(customer.email, deliveryNoteId);
-      await DeliveryNote.markEmailSent(deliveryNoteId);
+  private static async sendEmailAsync(deliveryId: number, deliveryNoteId: number): Promise<void> {
+    // SD3 message #10: getCustomerEmailByDelivery(deliveryId)
+    const customerEmails = await Customer.getCustomerEmailByDelivery(deliveryId);
+
+    // SD3 message #11: sendDeliveryNotePDF(customerEmail, deliveryNoteId)
+    for (const email of customerEmails) {
+      await EmailService.sendDeliveryNotePDF(email, deliveryNoteId);
     }
+
+    await DeliveryNote.markEmailSent(deliveryNoteId);
   }
 }

@@ -15,10 +15,10 @@ interface DeliveryListItem {
 }
 interface DeliveryDetail {
   delivery: DeliveryListItem & { customerCount: number; vehicleCapacity: number };
-  orders: { orderId: number; customerName: string; address: string; phone: string; status: string; totalAmount: number; requiredDate: string | null; items: { productName: string; quantity: number; unitPrice: number }[] }[];
+  orders: { orderId: number; customerName: string; address: string; phone: string; status: string; totalAmount: number; requiredDate: string | null }[];
   stops: { stopNumber: number; orderId: number; customerName: string; address: string; phone: string; email: string; orderAmount: number; orderStatus: string; requiredDate: string | null }[];
   products: { productName: string; totalQuantity: number; orderCount: number }[];
-  deliveryNotes: { noteId: number; orderId: number | null; signerName: string | null; digitalSignature: string | null; createdAt: string; sentToEmail: boolean }[];
+  deliveryNotes: { noteId: number; createdAt: string; sentToEmail: boolean }[];
 }
 
 const nextStatusMap: Record<string, { next: string; label: string }[]> = {
@@ -41,8 +41,8 @@ const statusGuidance: Record<string, string> = {
   Planned: 'יש לשייך נהג ורכב למשלוח',
   Assigned: 'יש לטעון את הסחורה לרכב',
   Loaded: 'הרכב נטען ומוכן — יש להתחיל את המסלול',
-  OnTheWay: 'הנהג בדרך — יש להחתים כל עסק בנפרד בסיום המסירה אצלו',
-  'On The Way': 'הנהג בדרך — יש להחתים כל עסק בנפרד בסיום המסירה אצלו',
+  OnTheWay: 'הנהג בדרך — בסיום יש להחתים את הלקוח ולסגור',
+  'On The Way': 'הנהג בדרך — בסיום יש להחתים את הלקוח ולסגור',
   Delivered: 'המשלוח הושלם בהצלחה',
   Failed: 'המשלוח נכשל — ניתן לתזמן מחדש',
 };
@@ -66,9 +66,6 @@ export default function DeliveryPage() {
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSigned, setHasSigned] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [signingOrderId, setSigningOrderId] = useState<number | null>(null);
-  const [signerName, setSignerName] = useState('');
-  const [viewNoteOrderId, setViewNoteOrderId] = useState<number | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -206,17 +203,15 @@ export default function DeliveryPage() {
     } catch { setResult({ success: false, message: 'שגיאת חיבור' }); } finally { setLoading(false); }
   };
 
-  const handleCompleteOrder = async (orderId: number) => {
-    if (!hasSigned || !signerName.trim()) return;
+  const handleComplete = async () => {
+    if (!selectedId || !hasSigned) return;
     const sig = canvasRef.current?.toDataURL('image/png') || '';
     setLoading(true); setResult(null);
     try {
-      const data = await (await fetch('/api/delivery', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId, signatureFile: sig, signerName: signerName.trim() }) })).json();
+      const data = await (await fetch('/api/delivery', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deliveryId: selectedId, signatureFile: sig }) })).json();
       if (data.success) {
-        setResult({ success: true, completed: true, deliveryNoteId: data.deliveryNoteId });
-        clearSignature(); setSignerName(''); setSigningOrderId(null);
-        await loadList(currentEmployeeId, selectedDate);
-        if (selectedId) loadDetail(selectedId);
+        setResult({ success: true, completed: true, deliveryNoteId: data.deliveryNoteId, deliveryId: selectedId });
+        clearSignature(); await loadList(currentEmployeeId, selectedDate); loadDetail(selectedId);
       } else setResult({ success: false, message: data.error || 'שגיאה' });
     } catch { setResult({ success: false, message: 'שגיאת חיבור' }); } finally { setLoading(false); }
   };
@@ -235,7 +230,7 @@ export default function DeliveryPage() {
       {result && (
         <div className="fixed top-20 z-50 px-6 py-3 rounded-xl shadow-lg text-sm font-medium"
           style={{ background: result.success ? 'var(--ht-success)' : 'var(--ht-danger)', color: '#fff', left: '50%', transform: 'translateX(-50%)' }}>
-          {result.completed ? `המסירה אושרה — תעודה #${result.deliveryNoteId}` : result.message}
+          {result.completed ? `המשלוח הושלם — תעודה #${result.deliveryNoteId}` : result.message}
         </div>
       )}
 
@@ -400,7 +395,7 @@ export default function DeliveryPage() {
                     { key: 'map' as const, label: 'מפת ניווט', icon: <IconMap size={14} /> },
                     { key: 'content' as const, label: 'תכולת משלוח', icon: <IconInventory size={14} /> },
                     { key: 'orders' as const, label: 'הזמנות במשלוח', icon: <IconOrders size={14} /> },
-                    ...((isOnTheWay || isDelivered) ? [{ key: 'signature' as const, label: 'מסירה ללקוחות', icon: <IconCheck size={14} /> }] : []),
+                    ...((isOnTheWay || isDelivered) ? [{ key: 'signature' as const, label: isDelivered ? 'חתימה ותעודת משלוח' : 'חתימה ותעודת משלוח', icon: <IconCheck size={14} /> }] : []),
                   ].map(tab => (
                     <button key={tab.key} onClick={() => setDetailTab(tab.key)}
                       className="flex-1 px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 transition-all"
@@ -517,72 +512,38 @@ export default function DeliveryPage() {
                     </div>
                   )}
 
-                  {/* Signature tab — each business on the route signs separately */}
+                  {/* Signature tab */}
                   {detailTab === 'signature' && (
-                    <div className="space-y-3">
-                      {isDelivered && (
-                        <div className="flex items-center gap-2 mb-1" style={{ color: 'var(--ht-success)' }}>
-                          <IconCheck size={18} /><span className="font-bold text-sm">המשלוח הושלם בהצלחה — כל העסקים נחתמו</span>
+                    isOnTheWay ? (
+                      <div>
+                        <h3 className="font-bold text-sm mb-2" style={{ color: 'var(--ht-primary)' }}>יש להחתים את הלקוח לפני סגירת המשלוח</h3>
+                        <div className="rounded-xl mb-3 overflow-hidden" style={{ border: '2px solid var(--ht-border)' }}>
+                          <canvas ref={canvasRef} width={800} height={200} className="w-full cursor-crosshair rounded-lg" style={{ background: '#fafbfc', height: '160px' }}
+                            onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
+                            onTouchStart={startDrawTouch} onTouchMove={drawTouch} onTouchEnd={() => setIsDrawing(false)} />
                         </div>
-                      )}
-                      {detail.orders.map(o => {
-                        const note = detail.deliveryNotes.find(n => n.orderId === o.orderId);
-                        const delivered = o.status === 'Delivered';
-                        const isSigningThis = signingOrderId === o.orderId;
-                        return (
-                          <div key={o.orderId} className="p-4 rounded-xl" style={{ background: 'var(--ht-surface-container)', border: '1px solid var(--ht-border)' }}>
-                            <div className="flex items-center justify-between gap-3">
-                              <div>
-                                <p className="font-bold text-sm" style={{ color: 'var(--ht-primary)' }}>{o.customerName}</p>
-                                <p className="text-xs opacity-50">{o.address}</p>
-                              </div>
-                              {delivered ? (
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <span className="flex items-center gap-1 text-xs font-bold" style={{ color: 'var(--ht-success)' }}>
-                                    <IconCheck size={13} /> נמסר{note?.signerName ? ` — ${note.signerName}` : ''}
-                                  </span>
-                                  {note && (
-                                    <button onClick={() => setViewNoteOrderId(o.orderId)} className="btn-ghost px-3 py-1.5 text-xs whitespace-nowrap">
-                                      הצג תעודת משלוח
-                                    </button>
-                                  )}
-                                </div>
-                              ) : isOnTheWay ? (
-                                <button onClick={() => { setSigningOrderId(o.orderId); setSignerName(''); clearSignature(); }}
-                                  disabled={isFuture} className="btn-primary px-4 py-1.5 text-xs disabled:opacity-50 shrink-0 whitespace-nowrap">
-                                  אישור מסירה
-                                </button>
-                              ) : (
-                                <span className="text-xs opacity-40 shrink-0">ממתין ליציאה לדרך</span>
-                              )}
-                            </div>
-
-                            {isSigningThis && (
-                              <div className="mt-3 pt-3 space-y-2" style={{ borderTop: '1px dashed var(--ht-border)' }}>
-                                <div>
-                                  <label className="block text-xs font-medium mb-1">שם החותם/ת בעסק</label>
-                                  <input value={signerName} onChange={(e) => setSignerName(e.target.value)} placeholder="שם מלא"
-                                    className="w-full px-3 py-2 rounded-lg text-sm" style={{ border: '1px solid var(--ht-border)', background: 'var(--ht-surface)' }} />
-                                </div>
-                                <div className="rounded-xl overflow-hidden" style={{ border: '2px solid var(--ht-border)' }}>
-                                  <canvas ref={canvasRef} width={800} height={200} className="w-full cursor-crosshair rounded-lg" style={{ background: '#fafbfc', height: '140px' }}
-                                    onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
-                                    onTouchStart={startDrawTouch} onTouchMove={drawTouch} onTouchEnd={() => setIsDrawing(false)} />
-                                </div>
-                                <div className="flex gap-2">
-                                  <button onClick={clearSignature} className="btn-ghost px-3 py-2 text-xs">ניקוי חתימה</button>
-                                  <button onClick={() => handleCompleteOrder(o.orderId)} disabled={loading || !hasSigned || !signerName.trim()}
-                                    className="btn-primary flex-1 py-2 text-xs disabled:opacity-50">
-                                    {loading ? 'שומר...' : 'אישור מסירה וסגירת ההזמנה'}
-                                  </button>
-                                  <button onClick={() => { setSigningOrderId(null); clearSignature(); }} className="btn-ghost px-3 py-2 text-xs">ביטול</button>
-                                </div>
-                              </div>
-                            )}
+                        <div className="flex gap-2">
+                          <button onClick={clearSignature} className="btn-ghost px-4 py-2 text-sm">ניקוי</button>
+                          <button onClick={handleComplete} disabled={loading || !hasSigned || isFuture}
+                            className="btn-primary flex-1 py-2.5 text-sm disabled:opacity-50">
+                            {loading ? 'סוגר...' : isFuture ? `נעול עד ${requiredDateDisplay}` : 'אישור מסירה וסגירת משלוח'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : isDelivered ? (
+                      <div>
+                        <div className="flex items-center gap-2 mb-3" style={{ color: 'var(--ht-success)' }}>
+                          <IconCheck size={18} /><span className="font-bold text-sm">המשלוח הושלם בהצלחה</span>
+                        </div>
+                        {detail.deliveryNotes.map(n => (
+                          <div key={n.noteId} className="p-3 rounded-lg" style={{ background: 'var(--ht-success-bg)' }}>
+                            <p className="text-sm">תעודת משלוח #{n.noteId}</p>
+                            <p className="text-xs opacity-60">נוצרה: <bdi dir="ltr">{new Date(n.createdAt).toLocaleString('he-IL')}</bdi></p>
+                            <p className="text-xs">נשלחה במייל: {n.sentToEmail ? 'כן' : 'לא'}</p>
                           </div>
-                        );
-                      })}
-                    </div>
+                        ))}
+                      </div>
+                    ) : null
                   )}
                 </div>
 
@@ -613,7 +574,7 @@ export default function DeliveryPage() {
                             ))}
                             {isOnTheWay && (
                               <button onClick={() => { setDetailTab('signature'); }} className="btn-primary w-full py-2 text-sm">
-                                מעבר למסירה ללקוחות ←
+                                המשך לחתימה וסגירה ←
                               </button>
                             )}
                           </div>
@@ -663,67 +624,6 @@ export default function DeliveryPage() {
           </div>
         </div>
       )}
-
-      {/* Delivery note view/print modal */}
-      {viewNoteOrderId !== null && (() => {
-        const order = detail?.orders.find(o => o.orderId === viewNoteOrderId);
-        const note = detail?.deliveryNotes.find(n => n.orderId === viewNoteOrderId);
-        if (!order || !note) return null;
-        return (
-          <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center p-4 print:p-0 print:static print:bg-white"
-            style={{ background: 'rgba(0,0,0,0.5)' }}
-            onClick={(e) => { if (e.target === e.currentTarget) setViewNoteOrderId(null); }}>
-            <style>{`@media print {
-              body * { visibility: hidden; }
-              #delivery-note-print, #delivery-note-print * { visibility: visible; }
-              #delivery-note-print { position: absolute; inset: 0; width: 100%; }
-              .print\\:hidden { display: none !important; }
-            }`}</style>
-            <div className="w-full max-w-lg rounded-xl overflow-hidden bg-white print:shadow-none print:max-w-full" style={{ boxShadow: '0 20px 50px rgba(0,0,0,0.3)' }}>
-              <div id="delivery-note-print" className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold" style={{ color: 'var(--ht-primary)' }}>ד״ר פיתה — תעודת משלוח #{note.noteId}</h2>
-                  <span className="text-xs opacity-50"><bdi dir="ltr">{new Date(note.createdAt).toLocaleString('he-IL')}</bdi></span>
-                </div>
-                <div className="text-sm space-y-1 mb-4">
-                  <p><span className="opacity-50">לקוח: </span><span className="font-medium">{order.customerName}</span></p>
-                  <p><span className="opacity-50">כתובת: </span>{order.address}</p>
-                  <p><span className="opacity-50">הזמנה: </span>#{order.orderId}</p>
-                </div>
-                <table className="w-full text-sm mb-4">
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--ht-border)' }}>
-                      <th className="text-start pb-1.5 text-xs font-bold" style={{ color: 'var(--ht-primary)' }}>מוצר</th>
-                      <th className="text-start pb-1.5 text-xs font-bold" style={{ color: 'var(--ht-primary)' }}>כמות</th>
-                      <th className="text-end pb-1.5 text-xs font-bold" style={{ color: 'var(--ht-primary)' }}>סה״כ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {order.items.map((it, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--ht-border)' }}>
-                        <td className="py-1.5">{it.productName}</td>
-                        <td className="py-1.5"><bdi dir="ltr">{it.quantity.toLocaleString()}</bdi></td>
-                        <td className="py-1.5 text-end"><bdi dir="ltr">{(it.quantity * it.unitPrice).toLocaleString()}</bdi> ₪</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <p className="text-sm font-bold text-end mb-4">סה״כ לתשלום: <bdi dir="ltr">{order.totalAmount.toLocaleString()}</bdi> ₪</p>
-                <div>
-                  <p className="text-xs opacity-50 mb-1">נחתם ע״י: {note.signerName || '—'}</p>
-                  {note.digitalSignature && (
-                    <img src={note.digitalSignature} alt="חתימה" className="rounded-lg" style={{ maxHeight: 90, border: '1px solid var(--ht-border)' }} />
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-2 p-4 pt-0 print:hidden">
-                <button onClick={() => window.print()} className="btn-primary flex-1 py-2 text-sm">הדפסה</button>
-                <button onClick={() => setViewNoteOrderId(null)} className="btn-ghost px-4 py-2 text-sm">סגירה</button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 }

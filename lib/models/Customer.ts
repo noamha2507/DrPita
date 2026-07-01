@@ -65,6 +65,17 @@ export class Customer {
     };
   }
 
+  // SD3 message: getCustomerEmailByDelivery(deliveryId)
+  static async getCustomerEmailByDelivery(deliveryId: number): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('customer:customers(email)')
+      .eq('delivery_id', deliveryId);
+    if (error) throw error;
+    const emails = [...new Set((data || []).map((d: any) => d.customer?.email).filter(Boolean))];
+    return emails;
+  }
+
   static async findById(customerId: number): Promise<Customer | null> {
     const { data, error } = await supabase
       .from('customers')

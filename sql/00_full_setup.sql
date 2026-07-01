@@ -123,8 +123,6 @@ CREATE TABLE production_plan_items (
 CREATE TABLE delivery_notes (
     note_id            SERIAL PRIMARY KEY,
     delivery_id        INT NOT NULL REFERENCES deliveries(delivery_id),
-    order_id           INT REFERENCES orders(order_id),
-    signer_name        VARCHAR(255),
     created_at         TIMESTAMP DEFAULT NOW(),
     digital_signature  TEXT,
     sent_to_email      BOOLEAN DEFAULT FALSE
