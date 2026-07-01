@@ -18,8 +18,18 @@ interface Material {
   isCritical: boolean;
 }
 
+interface ShortageAlert {
+  alertId: number;
+  materialId: number;
+  materialName: string;
+  unit: string;
+  message: string;
+  createdAt: string;
+}
+
 export default function InventoryPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
+  const [alerts, setAlerts] = useState<ShortageAlert[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -38,16 +48,24 @@ export default function InventoryPage() {
   const loadMaterials = async (autoSelect = false) => {
     try {
       const data = await (await fetch('/api/inventory')).json();
-      if (Array.isArray(data)) {
-        setMaterials(data);
+      if (Array.isArray(data.materials)) {
+        setMaterials(data.materials);
+        setAlerts(Array.isArray(data.alerts) ? data.alerts : []);
         // Auto-select first critical/low, else first material
-        if (autoSelect && data.length > 0) {
-          const priority = data.find((m: Material) => m.isCritical) || data.find((m: Material) => m.isLow) || data[0];
+        if (autoSelect && data.materials.length > 0) {
+          const priority = data.materials.find((m: Material) => m.isCritical) || data.materials.find((m: Material) => m.isLow) || data.materials[0];
           setSelectedId(priority.materialId);
         }
       }
     } catch { setError('שגיאה בטעינת נתוני מלאי'); }
     finally { setLoading(false); }
+  };
+
+  const resolveAlert = async (alertId: number) => {
+    try {
+      await fetch('/api/inventory/alerts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alertId }) });
+      setAlerts(prev => prev.filter(a => a.alertId !== alertId));
+    } catch { /* non-fatal — alert stays visible, user can retry */ }
   };
 
   const handleUpdate = async () => {
@@ -152,6 +170,28 @@ export default function InventoryPage() {
             </div>
           )}
 
+          {/* Production shortage alerts — synced from the production plan screen */}
+          {alerts.length > 0 && (
+            <div className="rounded-xl p-4" style={{ background: 'var(--ht-danger-bg)', border: '1px solid var(--ht-danger)' }}>
+              <h3 className="font-bold text-sm mb-3 flex items-center gap-1.5" style={{ color: 'var(--ht-danger)' }}>
+                <IconAlertTriangle size={16} /> חוסרים שעצרו תוכנית ייצור ({alerts.length})
+              </h3>
+              <div className="space-y-2">
+                {alerts.map(a => (
+                  <div key={a.alertId} className="flex items-center justify-between gap-3 p-3 rounded-lg" style={{ background: 'var(--ht-surface)' }}>
+                    <div>
+                      <p className="text-sm font-bold" style={{ color: 'var(--ht-primary)' }}>{a.materialName}</p>
+                      <p className="text-xs opacity-60 mt-0.5">{a.message}</p>
+                    </div>
+                    <button onClick={() => resolveAlert(a.alertId)} className="btn-ghost px-3 py-1.5 text-xs shrink-0 whitespace-nowrap">
+                      סמן כטופל
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {!selected && !loading && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center opacity-30">
@@ -190,6 +230,20 @@ export default function InventoryPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Production-plan shortage banner — this exact material blocked a plan */}
+                {alerts.filter(a => a.materialId === m.materialId).map(a => (
+                  <div key={a.alertId} className="p-4 rounded-xl flex items-center justify-between gap-3" style={{ background: 'var(--ht-warning-bg)', border: '1px solid var(--ht-warning)' }}>
+                    <div className="flex items-center gap-3">
+                      <span className="shrink-0" style={{ color: 'var(--ht-warning)' }}><IconAlertTriangle size={20} /></span>
+                      <div>
+                        <p className="font-bold text-sm" style={{ color: 'var(--ht-warning)' }}>עצר תוכנית ייצור</p>
+                        <p className="text-xs opacity-70 mt-0.5">{a.message}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => resolveAlert(a.alertId)} className="btn-ghost px-3 py-1.5 text-xs shrink-0 whitespace-nowrap">סמן כטופל</button>
+                  </div>
+                ))}
 
                 {/* KPI cards */}
                 <div className="grid grid-cols-3 gap-3">

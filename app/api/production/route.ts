@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ProductionController } from '@/lib/controllers/ProductionController';
 import { ProductionPlan } from '@/lib/models/ProductionPlan';
 import { ProductionPlanStatus } from '@/lib/enums';
+import { AutoAssignmentService } from '@/lib/services/AutoAssignmentService';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,6 +13,9 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await ProductionController.generatePlan(targetDate);
+    if (result.status === 'Waiting For Materials') {
+      await AutoAssignmentService.createShortageAlerts(targetDate, result.missingMaterials);
+    }
     return NextResponse.json(result);
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'שגיאה בהפקת תוכנית ייצור' }, { status: 500 });

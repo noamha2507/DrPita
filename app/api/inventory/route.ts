@@ -24,7 +24,25 @@ export async function GET() {
       isCritical: m.current_quantity <= m.minimum_threshold,
     }));
 
-    return NextResponse.json(materials);
+    // Open shortage alerts raised when a production plan couldn't proceed
+    // for lack of materials — surfaces exactly what's missing and how much
+    // to reorder, right on the inventory screen.
+    const { data: alertsData } = await supabase
+      .from('inventory_alerts')
+      .select('*, raw_materials(material_name, unit)')
+      .eq('alert_status', 'New')
+      .order('created_at', { ascending: false });
+
+    const alerts = (alertsData || []).map((a: any) => ({
+      alertId: a.alert_id,
+      materialId: a.material_id,
+      materialName: a.raw_materials?.material_name || '',
+      unit: a.raw_materials?.unit || '',
+      message: a.alert_message,
+      createdAt: a.created_at,
+    }));
+
+    return NextResponse.json({ materials, alerts });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

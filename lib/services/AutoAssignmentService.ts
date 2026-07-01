@@ -4,6 +4,7 @@ import { ProductionController } from '../controllers/ProductionController';
 import { OrderItem } from '../models/OrderItem';
 import { BillOfMaterials } from '../models/BillOfMaterials';
 import { RawMaterial } from '../models/RawMaterial';
+import { InventoryAlert } from '../models/InventoryAlert';
 
 // Logical delivery route, derived from a customer's city.
 export type RouteKey = 'shfela' | 'tel_aviv' | 'sharon' | 'other';
@@ -118,6 +119,9 @@ export class AutoAssignmentService {
     if (!existingPlan) {
       // No plan exists — create one (will pull orders for productionDate+1)
       const result = await ProductionController.generatePlan(productionDate);
+      if (result.status === 'Waiting For Materials') {
+        await AutoAssignmentService.createShortageAlerts(productionDate, result.missingMaterials);
+      }
       return result.planId;
     }
 
@@ -178,6 +182,33 @@ export class AutoAssignmentService {
       if (newStatus !== planData.status) {
         await supabase.from('production_plans').update({ status: newStatus }).eq('plan_id', planId);
       }
+      if (!allAvailable) {
+        const missingMaterials = currentStock.filter(m => !m.sufficient).map(m => ({
+          materialName: m.materialName, required: m.requiredQty, available: m.currentQty, shortage: m.requiredQty - m.currentQty,
+        }));
+        await AutoAssignmentService.createShortageAlerts(productionDate, missingMaterials);
+      }
+    }
+  }
+
+  /**
+   * Persist a low-stock alert per material blocking a production plan, so the
+   * inventory screen shows exactly what's missing and how much to reorder.
+   * Looked up by material name since the shortage payload doesn't carry the id.
+   * Uses InventoryAlert.createAlert() — an existing, previously-unwired class
+   * diagram method — without touching ProductionController/FR2 at all.
+   */
+  static async createShortageAlerts(
+    productionDate: string,
+    missingMaterials: { materialName: string; required: number; available: number; shortage: number }[] | undefined
+  ): Promise<void> {
+    if (!missingMaterials || missingMaterials.length === 0) return;
+    const { data: rawMaterials } = await supabase.from('raw_materials').select('material_id, material_name, unit');
+    for (const m of missingMaterials) {
+      const match = (rawMaterials || []).find((r: any) => r.material_name === m.materialName);
+      if (!match) continue;
+      const message = `חוסר לתוכנית ייצור ${productionDate}: נדרש ${m.required} ${match.unit}, במלאי ${m.available} ${match.unit} (חוסר ${m.shortage} ${match.unit})`;
+      await InventoryAlert.createAlert(match.material_id, message);
     }
   }
 
