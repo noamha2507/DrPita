@@ -27,6 +27,11 @@
   /* Dr. Pita brand colors (from original packaging) */
   --brand-red: #C41E2B;
   --brand-red-light: #fce8e9;
+
+  /* Brand gold — from the emblem logo */
+  --brand-gold: #e0a85a;
+  --brand-gold-deep: #c98a3a;
+  --brand-gold-soft: rgba(224, 168, 90, 0.14);
 }
 
 @theme inline {
@@ -135,4 +140,78 @@ select:focus-visible,
 pre, code {
   direction: ltr;
   text-align: start;
+}
+
+/* =====================================================================
+   UI polish layer — unified cards, motion, scrollbars, tables
+   (visual only; no behavioral change)
+   ===================================================================== */
+
+/* --- Unified card --- */
+.ht-card {
+  background: var(--ht-surface);
+  border: 1px solid var(--ht-border);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(10, 26, 47, 0.04), 0 4px 14px rgba(10, 26, 47, 0.04);
+  transition: box-shadow 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
+}
+.ht-card-hover:hover {
+  transform: translateY(-2px);
+  border-color: rgba(36, 86, 232, 0.28);
+  box-shadow: 0 2px 4px rgba(10, 26, 47, 0.05), 0 10px 26px rgba(10, 26, 47, 0.09);
+}
+
+/* --- Soft page entrance --- */
+@keyframes ht-page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+main, .page-in {
+  animation: ht-page-in 0.32s ease-out both;
+}
+
+/* --- Button micro-press --- */
+.btn-primary:active:not(:disabled),
+.btn-danger:active,
+.btn-success:active,
+.btn-ghost:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+/* --- Thin, subtle scrollbars --- */
+* { scrollbar-width: thin; scrollbar-color: rgba(10, 26, 47, 0.22) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: rgba(10, 26, 47, 0.18);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background-color: rgba(10, 26, 47, 0.32); }
+
+/* --- Brand selection color --- */
+::selection { background: var(--ht-accent-soft); color: var(--ht-on-surface); }
+
+/* --- Tables: aligned digits + gentle row hover --- */
+table { font-variant-numeric: tabular-nums; }
+tbody tr { transition: background 0.12s ease; }
+
+/* --- Skeleton shimmer (loading placeholders) --- */
+@keyframes ht-shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--ht-surface-container) 25%, #eaeef6 50%, var(--ht-surface-container) 75%);
+  background-size: 200% 100%;
+  animation: ht-shimmer 1.4s linear infinite;
+  border-radius: 12px;
+}
+
+/* --- Respect reduced motion --- */
+@media (prefers-reduced-motion: reduce) {
+  main, .page-in { animation: none; }
+  .ht-card, .ht-card-hover:hover { transition: none; transform: none; }
+  .skeleton { animation: none; }
 }

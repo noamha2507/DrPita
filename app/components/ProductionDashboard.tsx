@@ -70,9 +70,7 @@ function StatTile({ value, label, icon, tone = 'neutral' }: {
     : tone === 'warn' ? '#daa555'
     : 'var(--ht-accent)';
   return (
-    <div className="rounded-xl p-4 relative overflow-hidden" style={{
-      background: 'var(--ht-surface)', border: '1px solid var(--ht-border)',
-    }}>
+    <div className="ht-card p-4 relative overflow-hidden">
       <div className="absolute -top-3 -end-3 opacity-10" style={{ color: toneColor }}>
         <span style={{ fontSize: '64px', display: 'block' }}>{icon}</span>
       </div>
@@ -179,7 +177,7 @@ export default function ProductionDashboard({ user }: Props) {
 
       {!focus ? (
         // No plans at all
-        <div className="rounded-xl p-6 flex items-center gap-4" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+        <div className="ht-card p-6 flex items-center gap-4">
           <div className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--ht-border)' }}>
             <IconProduction size={26} />
           </div>
@@ -267,7 +265,7 @@ export default function ProductionDashboard({ user }: Props) {
         </div>
       ) : (
         // STATE D — only past runs; show the most recent one as history, no "now"
-        <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+        <div className="ht-card p-5">
           <div className="flex items-center gap-2 mb-2">
             <span style={{ color: 'var(--ht-success)' }}><IconCheck size={14} /></span>
             <span className="text-[11px] font-bold tracking-widest uppercase opacity-50">הייצור האחרון</span>
@@ -320,7 +318,7 @@ export default function ProductionDashboard({ user }: Props) {
           ===================================================================== */}
 
       {focusMaterials.length > 0 && (
-        <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+        <div className="ht-card p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold flex items-center gap-1.5 opacity-80">
               <IconInventory size={14} /> חומרי גלם לתוכנית
@@ -363,7 +361,7 @@ export default function ProductionDashboard({ user }: Props) {
           ===================================================================== */}
 
       {(data.open.length > 0 || data.upcoming.length > 0) && (
-        <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+        <div className="ht-card p-5">
           <h3 className="text-sm font-bold mb-3 opacity-80">ייצור פתוח וקרוב</h3>
           <div className="space-y-2">
             {[...data.open, ...data.upcoming].map(pl => {
@@ -401,11 +399,11 @@ export default function ProductionDashboard({ user }: Props) {
           ===================================================================== */}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+        <div className="ht-card p-5">
           <CompletionRing percent={planCompletion} done={completedCount} total={totalPlans} />
         </div>
 
-        <div className="rounded-xl p-5 flex flex-col justify-between" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+        <div className="ht-card p-5 flex flex-col justify-between">
           <p className="text-xs opacity-50 font-bold">נפח הייצור החודש</p>
           <div className="flex items-baseline gap-2 my-3">
             <span className="text-5xl font-bold tabular-nums" style={{ color: 'var(--ht-primary)' }}>

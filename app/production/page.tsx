@@ -289,7 +289,7 @@ export default function ProductionPage() {
                 </div>
 
                 {/* Progress tracker (LTR) */}
-                <div className="py-4 px-6 rounded-xl" dir="ltr" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                <div className="ht-card py-4 px-6" dir="ltr">
                   <div className="flex items-center">
                     {stateSteps.map((step, i) => {
                       const done = i <= idx;
@@ -325,7 +325,7 @@ export default function ProductionPage() {
                     { icon: <IconOrders size={20} />, value: `${planDetail.relatedOrders.length}`, label: 'הזמנות מקור' },
                     { icon: <IconClock size={20} />, value: totalPlanned > 0 ? `${Math.round((totalProduced / totalPlanned) * 100)}%` : '0%', label: 'התקדמות' },
                   ].map((kpi, i) => (
-                    <div key={i} className="rounded-xl p-4 text-center" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                    <div key={i} className="ht-card p-4 text-center">
                       <div className="flex justify-center mb-2"><span style={{ color: 'var(--ht-accent)' }}>{kpi.icon}</span></div>
                       <p className="text-xl font-bold" style={{ color: 'var(--ht-primary)' }}>{kpi.value}</p>
                       <p className="text-xs opacity-50 mt-0.5">{kpi.label}</p>
@@ -346,7 +346,7 @@ export default function ProductionPage() {
                 {/* Production items + Materials side by side */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {/* Products */}
-                  <div className="p-5 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                  <div className="ht-card p-5">
                     <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ color: 'var(--ht-primary)' }}>
                       <IconProduction size={16} /> מוצרים לייצור
                     </h3>
@@ -387,7 +387,7 @@ export default function ProductionPage() {
                   </div>
 
                   {/* Materials */}
-                  <div className="p-5 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                  <div className="ht-card p-5">
                     <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ color: 'var(--ht-primary)' }}>
                       <IconInventory size={16} /> חומרי גלם נדרשים
                     </h3>
@@ -418,7 +418,7 @@ export default function ProductionPage() {
 
                 {/* Source orders */}
                 {planDetail.relatedOrders.length > 0 && (
-                  <div className="p-5 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                  <div className="ht-card p-5">
                     <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ color: 'var(--ht-primary)' }}>
                       <IconOrders size={16} /> הזמנות שמרכיבות את התוכנית
                     </h3>

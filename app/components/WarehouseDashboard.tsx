@@ -56,9 +56,7 @@ function StatTile({ value, label, icon, tone = 'neutral' }: {
     : tone === 'bad' ? 'var(--ht-danger)'
     : 'var(--ht-accent)';
   return (
-    <div className="rounded-xl p-4 relative overflow-hidden" style={{
-      background: 'var(--ht-surface)', border: '1px solid var(--ht-border)',
-    }}>
+    <div className="ht-card p-4 relative overflow-hidden">
       <div className="absolute -top-3 -end-3 opacity-10" style={{ color: toneColor }}>
         <span style={{ fontSize: '64px', display: 'block' }}>{icon}</span>
       </div>
@@ -221,7 +219,7 @@ export default function WarehouseDashboard({ user }: Props) {
           STOCK LEVELS — every material with a gauge vs. its minimum line
           ===================================================================== */}
 
-      <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+      <div className="ht-card p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-bold flex items-center gap-1.5 opacity-80">
             <IconInventory size={14} /> מצב המלאי
@@ -243,7 +241,7 @@ export default function WarehouseDashboard({ user }: Props) {
           ===================================================================== */}
 
       {reorder.length > 0 && (
-        <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+        <div className="ht-card p-5">
           <h3 className="text-sm font-bold mb-3 opacity-80">להזמנה מהספק</h3>
           <div className="space-y-2">
             {reorder.map(m => (
@@ -281,7 +279,7 @@ export default function WarehouseDashboard({ user }: Props) {
           ===================================================================== */}
 
       {alerts.length > 0 && (
-        <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+        <div className="ht-card p-5">
           <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5 opacity-80">
             <IconAlertTriangle size={14} /> התראות מלאי פתוחות
           </h3>
@@ -304,7 +302,7 @@ export default function WarehouseDashboard({ user }: Props) {
           SUMMARY FOOTER
           ===================================================================== */}
 
-      <div className="rounded-xl p-4 flex items-center justify-between" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+      <div className="ht-card p-4 flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm">
           <IconCircleFull size={8} color={needsOrder > 0 ? '#daa555' : 'var(--ht-success)'} />
           <span className="opacity-70">

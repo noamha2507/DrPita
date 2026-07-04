@@ -54,7 +54,7 @@ export default function AppHeader({ title }: AppHeaderProps) {
   const links = toolbarLinks[userRole] || [];
 
   return (
-    <header style={{ background: 'var(--ht-primary)' }}>
+    <header className="sticky top-0 z-40" style={{ background: 'var(--ht-primary)', boxShadow: '0 2px 14px rgba(10,26,47,0.28)' }}>
       {/* Single unified bar: logo + nav + user */}
       <div className="flex items-center justify-between px-5 h-14">
 
@@ -70,7 +70,7 @@ export default function AppHeader({ title }: AppHeaderProps) {
 
           {/* Navigation — centered */}
           {links.length > 0 && (
-            <nav className="flex items-center gap-1 mx-4" aria-label="ניווט ראשי">
+            <nav className="flex items-center gap-1 mx-4 overflow-x-auto" aria-label="ניווט ראשי">
               {links.map(link => {
                 const isActive = pathname === link.href;
                 return (
@@ -96,9 +96,10 @@ export default function AppHeader({ title }: AppHeaderProps) {
                     aria-current={isActive ? 'page' : undefined}>
                     <link.Icon size={16} />
                     <span>{link.label}</span>
-                    {/* Active indicator line */}
+                    {/* Active indicator line — brand gold */}
                     {isActive && (
-                      <span className="absolute bottom-0 right-3 left-3 h-0.5 rounded-full bg-white"></span>
+                      <span className="absolute bottom-0 right-3 left-3 h-0.5 rounded-full"
+                        style={{ background: 'linear-gradient(90deg, var(--brand-gold), var(--brand-gold-deep))' }}></span>
                     )}
                   </button>
                 );
@@ -111,7 +112,7 @@ export default function AppHeader({ title }: AppHeaderProps) {
             {username && (
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
-                  style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1.5px solid rgba(255,255,255,0.25)' }}>
+                  style={{ background: 'rgba(255,255,255,0.12)', color: '#fff', border: '1.5px solid rgba(224,168,90,0.55)' }}>
                   {username.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex flex-col">

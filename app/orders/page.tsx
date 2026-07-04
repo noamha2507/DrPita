@@ -277,7 +277,7 @@ export default function OrdersPage() {
               </div>
 
               {/* Step tracker (LTR for correct order) */}
-              <div className="py-4 px-6 rounded-xl" dir="ltr" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+              <div className="ht-card py-4 px-6" dir="ltr">
                 <div className="flex items-center">
                   {[{ n: 1, label: 'בחירת לקוח' }, { n: 2, label: 'בחירת מוצרים' }, { n: 3, label: 'סיכום ושליחה' }].map((step, i, arr) => (
                     <div key={step.n} className="flex items-center" style={{ flex: i < arr.length - 1 ? 1 : 'none' }}>
@@ -298,7 +298,7 @@ export default function OrdersPage() {
               </div>
 
               {/* Step 1: customer */}
-              <div className="p-5 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+              <div className="ht-card p-5">
                 <h2 className="text-sm font-bold mb-3" style={{ color: 'var(--ht-primary)' }}>בחירת לקוח</h2>
                 <div className="flex gap-2">
                   <select value={selectedCustomer} onChange={(e) => setSelectedCustomer(Number(e.target.value))}
@@ -323,7 +323,7 @@ export default function OrdersPage() {
               </div>
 
               {/* Step 2: products */}
-              <div className="p-5 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)', opacity: selectedCustomer ? 1 : 0.5 }}>
+              <div className="ht-card p-5" style={{ opacity: selectedCustomer ? 1 : 0.5 }}>
                 <h2 className="text-sm font-bold mb-3" style={{ color: 'var(--ht-primary)' }}>בחירת מוצרים</h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {products.map(p => {
@@ -344,7 +344,7 @@ export default function OrdersPage() {
 
               {/* Step 3: cart */}
               {items.length > 0 && (
-                <div className="p-5 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                <div className="ht-card p-5">
                   <h2 className="text-sm font-bold mb-3" style={{ color: 'var(--ht-primary)' }}>סיכום הזמנה</h2>
                   <table className="w-full text-start text-sm">
                     <thead><tr style={{ borderBottom: '2px solid var(--ht-accent)' }}>
@@ -441,7 +441,7 @@ export default function OrdersPage() {
                     { value: qty > 0 ? qty.toLocaleString() : '—', label: 'כמות פיתות' },
                     { value: o.requiredDeliveryDate || o.required_delivery_date ? new Date(o.requiredDeliveryDate || o.required_delivery_date).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' }) : '—', label: 'תאריך אספקה' },
                   ].map((k, i) => (
-                    <div key={i} className="rounded-xl p-4 text-center" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                    <div key={i} className="ht-card p-4 text-center">
                       <p className="text-xl font-bold" style={{ color: 'var(--ht-primary)' }}>{k.value}</p>
                       <p className="text-xs opacity-50 mt-0.5">{k.label}</p>
                     </div>
@@ -460,7 +460,7 @@ export default function OrdersPage() {
                 )}
 
                 {/* Items */}
-                <div className="p-5 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                <div className="ht-card p-5">
                   <h3 className="text-sm font-bold mb-3" style={{ color: 'var(--ht-primary)' }}>פריטי ההזמנה</h3>
                   {detailLoading ? (
                     <div className="text-center py-4"><div className="inline-block w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--ht-border)', borderTopColor: 'var(--ht-accent)' }}></div></div>

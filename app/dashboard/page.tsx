@@ -122,7 +122,7 @@ export default function DashboardPage() {
             {/* ============ Business sections ============ */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* הזמנות */}
-              <div className="rounded-xl p-4" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+              <div className="ht-card p-4">
                 <div className="flex items-center gap-2 mb-3 pb-2" style={{ borderBottom: '2px solid var(--ht-accent)' }}>
                   <IconOrders size={16} />
                   <h3 className="text-sm font-bold" style={{ color: 'var(--ht-primary)' }}>הזמנות</h3>
@@ -137,7 +137,7 @@ export default function DashboardPage() {
               </div>
 
               {/* ייצור */}
-              <div className="rounded-xl p-4" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+              <div className="ht-card p-4">
                 <div className="flex items-center gap-2 mb-3 pb-2" style={{ borderBottom: '2px solid var(--ht-success)' }}>
                   <IconProduction size={16} />
                   <h3 className="text-sm font-bold" style={{ color: 'var(--ht-primary)' }}>ייצור</h3>
@@ -152,7 +152,7 @@ export default function DashboardPage() {
               </div>
 
               {/* משלוחים */}
-              <div className="rounded-xl p-4" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+              <div className="ht-card p-4">
                 <div className="flex items-center gap-2 mb-3 pb-2" style={{ borderBottom: '2px solid var(--ht-warning)' }}>
                   <IconDelivery size={16} />
                   <h3 className="text-sm font-bold" style={{ color: 'var(--ht-primary)' }}>משלוחים</h3>
@@ -198,7 +198,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
               {/* ----- הזמנות אחרונות ----- */}
-              <div className="p-4 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+              <div className="ht-card p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-bold text-sm flex items-center gap-1.5" style={{ color: 'var(--ht-primary)' }}><IconOrders size={14} /> הזמנות אחרונות</h3>
                   <button onClick={() => router.push('/orders')} className="text-xs" style={{ color: 'var(--ht-accent)' }}>הכול ←</button>
@@ -239,7 +239,7 @@ export default function DashboardPage() {
               </div>
 
               {/* ----- תוכניות ייצור ----- */}
-              <div className="p-4 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+              <div className="ht-card p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-bold text-sm flex items-center gap-1.5" style={{ color: 'var(--ht-primary)' }}><IconProduction size={14} /> תוכניות ייצור</h3>
                   <button onClick={() => router.push('/production')} className="text-xs" style={{ color: 'var(--ht-accent)' }}>הכול ←</button>
@@ -267,7 +267,7 @@ export default function DashboardPage() {
               </div>
 
               {/* ----- משלוחים ----- */}
-              <div className="p-4 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+              <div className="ht-card p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-bold text-sm flex items-center gap-1.5" style={{ color: 'var(--ht-primary)' }}><IconDelivery size={14} /> משלוחים</h3>
                   <button onClick={() => router.push('/delivery')} className="text-xs" style={{ color: 'var(--ht-accent)' }}>הכול ←</button>
@@ -302,7 +302,7 @@ export default function DashboardPage() {
         {loading && user.role === 'Manager' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[1,2,3].map(i => (
-              <div key={i} className="p-5 rounded-xl animate-pulse" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)', height: '200px' }}></div>
+              <div key={i} className="p-5 rounded-xl skeleton" style={{ height: '200px' }}></div>
             ))}
           </div>
         )}
@@ -324,7 +324,7 @@ export default function DashboardPage() {
 
         {/* Any remaining role — placeholder welcome */}
         {user.role !== 'Manager' && user.role !== 'Driver' && user.role !== 'ProductionWorker' && user.role !== 'WarehouseWorker' && (
-          <div className="p-8 rounded-xl text-center flex flex-col items-center" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+          <div className="ht-card p-8 text-center flex flex-col items-center">
             <Logo size={56} light={false} />
             <p className="text-lg font-bold mt-3" style={{ color: 'var(--ht-primary)' }}>{greeting}, {roleLabels[user.role]}</p>
             <p className="text-sm opacity-50 mt-1">ניתן לבחור פעולה מסרגל הכלים למעלה</p>

@@ -344,7 +344,7 @@ export default function DeliveryPage() {
                 </div>
 
                 {/* ===== Progress tracker (circle style — LTR for correct order) ===== */}
-                <div className="py-4 px-6 rounded-xl" dir="ltr" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                <div className="ht-card py-4 px-6" dir="ltr">
                   <div className="flex items-center">
                     {stateSteps.map((step, i) => {
                       const done = i <= idx;
@@ -382,7 +382,7 @@ export default function DeliveryPage() {
                     { icon: <IconOrders size={20} />, value: String(detail.delivery.orderCount), label: 'הזמנות' },
                     { icon: <IconOrders size={20} />, value: `${detail.delivery.totalValue.toLocaleString()} ₪`, label: 'שווי כולל' },
                   ].map((kpi, i) => (
-                    <div key={i} className="rounded-xl p-4 text-center" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                    <div key={i} className="ht-card p-4 text-center">
                       <div className="flex justify-center mb-2"><span style={{ color: 'var(--ht-accent)' }}>{kpi.icon}</span></div>
                       <p className="text-xl font-bold" style={{ color: 'var(--ht-primary)' }}>{kpi.value}</p>
                       <p className="text-xs opacity-50 mt-0.5">{kpi.label}</p>
@@ -413,7 +413,7 @@ export default function DeliveryPage() {
                 </div>
 
                 {/* ===== Tab Content ===== */}
-                <div className="rounded-b-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)', borderTop: 'none' }}>
+                <div className="ht-card rounded-b-xl p-5" style={{ borderTop: 'none', borderTopLeftRadius: 0, borderTopRightRadius: 0 }}>
                   {/* Route tab */}
                   {detailTab === 'route' && (
                     <div>
@@ -587,7 +587,7 @@ export default function DeliveryPage() {
                       )}
                     </div>
                     {/* Quick summary */}
-                    <div className="rounded-xl p-4" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                    <div className="ht-card p-4">
                       <p className="text-xs font-bold mb-2" style={{ color: 'var(--ht-primary)' }}>סיכום מהיר</p>
                       <div className="space-y-1.5 text-sm">
                         <div className="flex justify-between"><span className="opacity-50">נהג</span><span className="font-medium">{detail.delivery.driverName}</span></div>
@@ -596,7 +596,7 @@ export default function DeliveryPage() {
                       </div>
                     </div>
                     {/* Content summary */}
-                    <div className="rounded-xl p-4" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                    <div className="ht-card p-4">
                       <p className="text-xs font-bold mb-2" style={{ color: 'var(--ht-primary)' }}>תכולת משלוח</p>
                       {detail.products.map((p, i) => (
                         <div key={i} className="text-sm">

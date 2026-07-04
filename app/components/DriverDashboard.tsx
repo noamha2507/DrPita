@@ -78,10 +78,7 @@ function StatTile({
     : tone === 'warn' ? '#daa555'
     : 'var(--ht-accent)';
   return (
-    <div className="rounded-xl p-4 relative overflow-hidden" style={{
-      background: 'var(--ht-surface)',
-      border: '1px solid var(--ht-border)',
-    }}>
+    <div className="ht-card p-4 relative overflow-hidden">
       <div className="absolute -top-3 -end-3 opacity-10" style={{ color: toneColor }}>
         <span style={{ fontSize: '64px', display: 'block' }}>{icon}</span>
       </div>
@@ -350,7 +347,7 @@ export default function DriverDashboard({ user }: Props) {
           ===================================================================== */}
 
       {data.today.length > 0 && (
-        <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+        <div className="ht-card p-5">
           <h3 className="text-sm font-bold mb-3 opacity-80">{todayCount > 1 ? 'המשלוחים שלך היום' : 'המסלול שלך היום'}</h3>
           <div className="space-y-2">
             {data.today.map(del => (
@@ -384,7 +381,7 @@ export default function DriverDashboard({ user }: Props) {
           WEEKLY SCHEDULE STRIP — visual day-by-day
           ===================================================================== */}
 
-      <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+      <div className="ht-card p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-bold opacity-80">השבוע</h3>
           <span className="text-xs opacity-40">7 ימים קדימה</span>
@@ -441,7 +438,7 @@ export default function DriverDashboard({ user }: Props) {
           ===================================================================== */}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="rounded-xl p-5" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+        <div className="ht-card p-5">
           <SuccessRing
             percent={data.stats.lifetime.successRate}
             delivered={data.stats.lifetime.delivered}
@@ -449,7 +446,7 @@ export default function DriverDashboard({ user }: Props) {
           />
         </div>
 
-        <div className="rounded-xl p-5 flex flex-col justify-between" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+        <div className="ht-card p-5 flex flex-col justify-between">
           <p className="text-xs opacity-50 font-bold">החודש הזה</p>
           <div className="flex items-baseline gap-2 my-3">
             <span className="text-5xl font-bold tabular-nums" style={{ color: 'var(--ht-primary)' }}>

@@ -244,7 +244,7 @@ export default function InventoryPage() {
                     { value: <><bdi dir="ltr">{m.minimumThreshold.toLocaleString()}</bdi> {m.unit}</>, label: 'סף מינימום', color: 'var(--ht-primary)' },
                     { value: <>{diff >= 0 ? '+' : ''}<bdi dir="ltr">{diff.toLocaleString()}</bdi> {m.unit}</>, label: diff >= 0 ? 'עודף מעל הסף' : 'חוסר מתחת לסף', color: diff >= 0 ? 'var(--ht-success)' : 'var(--ht-danger)' },
                   ].map((k, i) => (
-                    <div key={i} className="rounded-xl p-4 text-center" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                    <div key={i} className="ht-card p-4 text-center">
                       <p className="text-lg font-bold" style={{ color: k.color }}>{k.value}</p>
                       <p className="text-xs opacity-50 mt-0.5">{k.label}</p>
                     </div>
@@ -252,7 +252,7 @@ export default function InventoryPage() {
                 </div>
 
                 {/* Stock gauge with threshold marker */}
-                <div className="p-5 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                <div className="ht-card p-5">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-bold" style={{ color: 'var(--ht-primary)' }}>מד מלאי</h3>
                     <span className="text-xs opacity-50">ביחס לרמה מומלצת (×3 מהסף)</span>
@@ -271,7 +271,7 @@ export default function InventoryPage() {
 
                 {/* Supplier + action */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="p-5 rounded-xl" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>
+                  <div className="ht-card p-5">
                     <h3 className="text-sm font-bold mb-3 flex items-center gap-1.5" style={{ color: 'var(--ht-primary)' }}><IconUser size={14} /> ספק</h3>
                     {m.supplierName ? (
                       <>
@@ -299,7 +299,7 @@ export default function InventoryPage() {
       {/* Update Modal */}
       {updateModal && (
         <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => setUpdateModal(null)}>
-          <div className="p-6 rounded-xl w-full max-w-md" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }} onClick={e => e.stopPropagation()}>
+          <div className="ht-card p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-bold mb-1" style={{ color: 'var(--ht-primary)' }}>קבלת סחורה — {updateModal.materialName}</h3>
             <p className="text-sm opacity-50 mb-4">מלאי נוכחי: <bdi dir="ltr">{updateModal.currentQuantity.toLocaleString()}</bdi> {updateModal.unit}</p>
             <label className="block text-sm font-medium mb-1">כמות שהתקבלה ({updateModal.unit})</label>
@@ -312,7 +312,7 @@ export default function InventoryPage() {
               </p>
             )}
             <div className="flex gap-3">
-              <button onClick={() => setUpdateModal(null)} className="flex-1 py-2.5 rounded-lg text-sm" style={{ background: 'var(--ht-surface)', border: '1px solid var(--ht-border)' }}>ביטול</button>
+              <button onClick={() => setUpdateModal(null)} className="btn-ghost flex-1 py-2.5 text-sm">ביטול</button>
               <button onClick={handleUpdate} disabled={updating || addQty <= 0} className="btn-primary flex-1 py-2.5 text-sm disabled:opacity-50">
                 {updating ? 'מעדכן...' : 'עדכון מלאי'}
               </button>
