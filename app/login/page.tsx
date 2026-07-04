@@ -162,7 +162,7 @@ export default function LoginPage() {
                 <circle cx="12" cy="8" r="4" /><path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7" />
               </svg>
               <input id="username" type="text" value={username} onChange={(e) => setUsername(e.target.value)}
-                className="w-full rounded-full ps-5 pe-11 py-3 text-sm outline-none"
+                className="w-full rounded-full ps-12 pe-5 py-3 text-sm outline-none"
                 style={pillInput}
                 placeholder="שם משתמש" required autoComplete="username" aria-label="שם משתמש" />
             </div>
